@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  IT-HONA Design System — тематические токены.
+  Тёмная тема — основная (Brand Book §10); светлая поддерживается полностью
+  и переключается сменой data-theme на <html>.
+  Значения rgba для muted/faint/line взяты из утверждённого макета доски.
+*/
+@layer base {
+  :root,
+  :root[data-theme='dark'] {
+    --bg: #0b0b0f; /* Ink */
+    --surface: #1e1e24; /* Graphite */
+    --surface-2: #131317; /* фон колонки */
+    --elevated: #16161b; /* поповеры/меню */
+    --fg: #ffffff;
+    --muted: rgba(255, 255, 255, 0.56);
+    --faint: rgba(255, 255, 255, 0.34);
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --hover: rgba(255, 255, 255, 0.05);
+    color-scheme: dark;
+  }
+
+  :root[data-theme='light'] {
+    --bg: #ffffff;
+    --surface: #f1f5f3;
+    --surface-2: #f6f8f7;
+    --elevated: #ffffff;
+    --fg: #1e1e24;
+    --muted: rgba(30, 30, 36, 0.62);
+    --faint: rgba(30, 30, 36, 0.42);
+    --line: rgba(30, 30, 36, 0.1);
+    --line-strong: rgba(30, 30, 36, 0.18);
+    --hover: rgba(30, 30, 36, 0.04);
+    color-scheme: light;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
+      Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Кастомный скроллбар в фирменном стиле */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--faint);
+  }
+
+  /* Заметный, но фирменный фокус для доступности (WCAG 2.1 AA) */
+  :focus-visible {
+    outline: 2px solid var(--brand, #16a34a);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Ограничение текста в N строк */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Скрыть скроллбар, сохранив прокрутку */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Убрать «залипание» синего выделения при drag на тач-устройствах */
+  .touch-none {
+    touch-action: none;
+  }
+}

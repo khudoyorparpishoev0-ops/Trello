@@ -1,0 +1,121 @@
+/**
+ * Логическая модель данных (см. ТЗ логики §2).
+ * Иерархия: Пространство → Доска → Список → Карточка → {Чек-лист, Комментарии, Вложения}.
+ * В прототипе данные живут в памяти, без бэкенда.
+ */
+
+export type Priority = 'low' | 'medium' | 'high' | 'critical'
+
+export type BoardVisibility = 'private' | 'workspace' | 'public'
+
+export type WorkspaceRole = 'observer' | 'member' | 'admin'
+
+/** Пользователь / участник (ТЗ логики §2.2). */
+export interface User {
+  id: string
+  name: string
+  /** Инициалы для аватара-заглушки. */
+  initials: string
+  /** HEX-цвет фона аватара. */
+  color: string
+  role?: WorkspaceRole
+  online?: boolean
+}
+
+/** Метка — цветной тег категории, принадлежит доске (ТЗ логики §5.3). */
+export interface Label {
+  id: string
+  name: string
+  /** Ключ семантического цвета либо HEX. */
+  color: string
+}
+
+/** Пункт чек-листа. */
+export interface ChecklistItem {
+  id: string
+  text: string
+  done: boolean
+}
+
+/** Чек-лист внутри карточки (ТЗ логики §6.1). */
+export interface Checklist {
+  id: string
+  title: string
+  items: ChecklistItem[]
+}
+
+/** Комментарий к карточке (ТЗ логики §6.2). */
+export interface Comment {
+  id: string
+  authorId: string
+  text: string
+  createdAt: string // ISO
+  editedAt?: string
+}
+
+/** Вложение — файл карточки (ТЗ логики §6.3). */
+export interface Attachment {
+  id: string
+  name: string
+  /** Расширение/тип для иконки. */
+  kind: string
+  /** Размер в байтах. */
+  size: number
+}
+
+/** Карточка — единица задачи (ТЗ логики §5). */
+export interface Card {
+  id: string
+  title: string
+  description?: string
+  labelIds: string[]
+  assigneeIds: string[]
+  priority: Priority
+  /** Дедлайн, ISO-строка. */
+  dueDate?: string
+  /** Дата начала, не может быть позже дедлайна (ТЗ логики §5.3). */
+  startDate?: string
+  checklists: Checklist[]
+  comments: Comment[]
+  attachments: Attachment[]
+  createdAt: string
+}
+
+/** Список / колонка-стадия (ТЗ логики §4.2). */
+export interface List {
+  id: string
+  title: string
+  /** Упорядоченные id карточек. Позиция = индекс в массиве. */
+  cardIds: string[]
+  /** WIP-лимит (опционально) — при превышении предупреждаем, но не блокируем. */
+  wipLimit?: number
+}
+
+/** Доска — проект / область работы (ТЗ логики §4.1). */
+export interface Board {
+  id: string
+  name: string
+  visibility: BoardVisibility
+  /** Упорядоченные id списков. */
+  listIds: string[]
+  memberIds: string[]
+}
+
+/** Рабочее пространство — контейнер команды (ТЗ логики §2.2). */
+export interface Workspace {
+  id: string
+  name: string
+  boards: { id: string; name: string }[]
+}
+
+/** Нормализованное состояние доски в памяти. */
+export interface BoardState {
+  board: Board
+  lists: Record<string, List>
+  cards: Record<string, Card>
+  labels: Record<string, Label>
+  users: Record<string, User>
+  workspace: Workspace
+  /** Текущий пользователь (для фильтра «мои карточки», @-упоминаний). */
+  currentUserId: string
+}

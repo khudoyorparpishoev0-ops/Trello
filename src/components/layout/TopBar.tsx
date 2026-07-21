@@ -1,0 +1,155 @@
+import {
+  Lock,
+  Search,
+  Sun,
+  Moon,
+  Bell,
+  UserPlus,
+  SlidersHorizontal,
+  Check,
+} from 'lucide-react'
+import type { Filters } from '@/components/board/Board'
+import { useBoard } from '@/store/boardStore'
+import { useTheme } from '@/store/theme'
+import { Button } from '@/components/ui/Button'
+import { IconButton } from '@/components/ui/IconButton'
+import { Avatar } from '@/components/ui/Avatar'
+import { cn } from '@/lib/utils'
+
+const VIEWS = ['Доска', 'Таймлайн', 'Календарь', 'Таблица'] as const
+
+interface TopBarProps {
+  filters: Filters
+  onFiltersChange: (f: Filters) => void
+}
+
+export function TopBar({ filters, onFiltersChange }: TopBarProps) {
+  const { state } = useBoard()
+  const { theme, toggle } = useTheme()
+  const members = state.board.memberIds.map((id) => state.users[id]).filter(Boolean)
+
+  return (
+    <header className="shrink-0 border-b border-line bg-bg">
+      {/* Верхний ряд */}
+      <div className="flex items-center gap-3 px-6 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <h1 className="truncate text-h3 font-semibold text-fg">{state.board.name}</h1>
+          <span className="inline-flex items-center gap-1 rounded-pill bg-hover px-2 py-0.5 text-caption font-medium text-muted">
+            <Lock size={12} strokeWidth={2} />
+            Приватная
+          </span>
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          {/* Поиск */}
+          <div className="relative hidden sm:block">
+            <Search
+              size={16}
+              strokeWidth={2}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+            />
+            <input
+              value={filters.query}
+              onChange={(e) => onFiltersChange({ ...filters, query: e.target.value })}
+              placeholder="Поиск карточек…"
+              className="h-9 w-44 rounded-input border border-line bg-surface pl-9 pr-3 text-small text-fg outline-none transition-colors focus:border-brand focus:w-56 placeholder:text-faint"
+            />
+          </div>
+
+          {/* Присутствие */}
+          <div className="hidden items-center md:flex">
+            {members.slice(0, 4).map((u, i) => (
+              <span key={u.id} className={cn(i > 0 && '-ml-2')}>
+                <Avatar user={u} size="md" showStatus />
+              </span>
+            ))}
+          </div>
+
+          <IconButton icon={Bell} label="Уведомления" size="sm" />
+          <IconButton
+            icon={theme === 'dark' ? Sun : Moon}
+            label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+            size="sm"
+            onClick={toggle}
+          />
+          <Button size="sm" icon={UserPlus}>
+            Пригласить
+          </Button>
+        </div>
+      </div>
+
+      {/* Нижний ряд: виды + фильтры */}
+      <div className="flex items-center gap-3 px-6 pb-3">
+        <div className="flex items-center gap-1 rounded-btn bg-surface-2 p-1">
+          {VIEWS.map((v) => {
+            const active = v === 'Доска'
+            return (
+              <button
+                key={v}
+                type="button"
+                disabled={!active}
+                title={active ? undefined : 'Скоро'}
+                className={cn(
+                  'rounded-[10px] px-3 py-1 text-caption font-medium transition-colors duration-200',
+                  active ? 'bg-bg text-fg shadow-sm' : 'text-faint hover:text-muted disabled:cursor-not-allowed',
+                )}
+              >
+                {v}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          <span className="hidden items-center gap-1 text-caption text-faint sm:flex">
+            <SlidersHorizontal size={14} strokeWidth={2} />
+            Быстрые фильтры:
+          </span>
+          <FilterChip
+            active={filters.onlyMine}
+            onClick={() => onFiltersChange({ ...filters, onlyMine: !filters.onlyMine })}
+          >
+            Мои карточки
+          </FilterChip>
+          <FilterChip
+            active={filters.overdue}
+            tone="error"
+            onClick={() => onFiltersChange({ ...filters, overdue: !filters.overdue })}
+          >
+            Просрочено
+          </FilterChip>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function FilterChip({
+  active,
+  tone = 'brand',
+  onClick,
+  children,
+}: {
+  active: boolean
+  tone?: 'brand' | 'error'
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-pill border px-2.5 py-1 text-caption font-medium transition-colors duration-200 ease-smooth',
+        active
+          ? tone === 'error'
+            ? 'border-transparent bg-error-soft text-error'
+            : 'border-transparent bg-brand-soft text-brand'
+          : 'border-line text-muted hover:border-line-strong hover:text-fg',
+      )}
+    >
+      {active && <Check size={13} strokeWidth={2.5} />}
+      {children}
+    </button>
+  )
+}
