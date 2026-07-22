@@ -1,15 +1,17 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
-import { SidebarContent } from './Sidebar'
+import { SidebarContent, type AppView } from './Sidebar'
 import { IconButton } from '@/components/ui/IconButton'
 
 interface MobileNavProps {
   open: boolean
   onClose: () => void
+  activeView: AppView
+  onSelectView: (v: AppView) => void
 }
 
 /** Мобильное меню: боковая панель как выезжающий слева drawer (виден только на узких экранах). */
-export function MobileNav({ open, onClose }: MobileNavProps) {
+export function MobileNav({ open, onClose, activeView, onSelectView }: MobileNavProps) {
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -26,7 +28,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
         <div className="absolute right-2 top-3">
           <IconButton icon={X} label="Закрыть меню" size="sm" onClick={onClose} />
         </div>
-        <SidebarContent onNavigate={onClose} />
+        <SidebarContent activeView={activeView} onSelectView={onSelectView} onNavigate={onClose} />
       </div>
     </div>
   )

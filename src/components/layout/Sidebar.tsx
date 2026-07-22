@@ -13,19 +13,32 @@ import { useBoard } from '@/store/boardStore'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
-const NAV: { icon: LucideIcon; label: string; active?: boolean }[] = [
-  { icon: SquareKanban, label: 'Доски', active: true },
-  { icon: LayoutDashboard, label: 'Дашборд' },
+export type AppView = 'board' | 'dashboard'
+
+const NAV: { icon: LucideIcon; label: string; view?: AppView }[] = [
+  { icon: SquareKanban, label: 'Доски', view: 'board' },
+  { icon: LayoutDashboard, label: 'Дашборд', view: 'dashboard' },
   { icon: Calendar, label: 'Календарь' },
   { icon: Users, label: 'Команда' },
   { icon: BarChart3, label: 'Отчёты' },
 ]
 
+interface SidebarContentProps {
+  activeView: AppView
+  onSelectView: (v: AppView) => void
+  onNavigate?: () => void
+}
+
 /** Внутреннее наполнение боковой панели. Переиспользуется на десктопе и в мобильном drawer. */
-export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarContent({ activeView, onSelectView, onNavigate }: SidebarContentProps) {
   const { state } = useBoard()
   const user = state.users[state.currentUserId]
   const roleLabel = user.role === 'admin' ? 'Админ пространства' : 'Участник'
+
+  const go = (view?: AppView) => {
+    if (view) onSelectView(view)
+    onNavigate?.()
+  }
 
   return (
     <>
@@ -44,21 +57,24 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Навигация */}
       <nav className="px-3 py-2">
-        {NAV.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            onClick={onNavigate}
-            className={cn(
-              'flex w-full items-center gap-3 rounded-btn px-3 py-2 text-small font-medium transition-colors duration-200 ease-smooth',
-              item.active ? 'bg-hover text-fg' : 'text-muted hover:bg-hover hover:text-fg',
-            )}
-          >
-            <item.icon size={18} strokeWidth={2} />
-            {item.label}
-            {item.active && <span className="ml-auto h-1.5 w-1.5 rounded-pill bg-brand" />}
-          </button>
-        ))}
+        {NAV.map((item) => {
+          const active = item.view !== undefined && item.view === activeView
+          return (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => go(item.view)}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-btn px-3 py-2 text-small font-medium transition-colors duration-200 ease-smooth',
+                active ? 'bg-hover text-fg' : 'text-muted hover:bg-hover hover:text-fg',
+              )}
+            >
+              <item.icon size={18} strokeWidth={2} />
+              {item.label}
+              {active && <span className="ml-auto h-1.5 w-1.5 rounded-pill bg-brand" />}
+            </button>
+          )
+        })}
       </nav>
 
       {/* Рабочее пространство */}
@@ -71,12 +87,12 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="px-3">
         <div className="mb-1 px-3 text-caption font-semibold text-muted">{state.workspace.name}</div>
         {state.workspace.boards.map((b) => {
-          const active = b.id === state.board.id
+          const active = b.id === state.board.id && activeView === 'board'
           return (
             <button
               key={b.id}
               type="button"
-              onClick={onNavigate}
+              onClick={() => go('board')}
               className={cn(
                 'flex w-full items-center gap-2 rounded-btn px-3 py-2 text-small transition-colors duration-200 ease-smooth',
                 active ? 'bg-brand-soft font-medium text-brand' : 'text-muted hover:bg-hover hover:text-fg',
@@ -105,11 +121,16 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
+interface SidebarProps {
+  activeView: AppView
+  onSelectView: (v: AppView) => void
+}
+
 /** Боковая панель для десктопа (скрыта на узких экранах — там мобильное меню). */
-export function Sidebar() {
+export function Sidebar({ activeView, onSelectView }: SidebarProps) {
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-surface-2 lg:flex">
-      <SidebarContent />
+      <SidebarContent activeView={activeView} onSelectView={onSelectView} />
     </aside>
   )
 }
