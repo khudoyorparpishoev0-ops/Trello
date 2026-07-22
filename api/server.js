@@ -235,13 +235,31 @@ async function handle(req, res) {
     )
   }
 
-  // Список команды (для раздела «Команда» и дней рождения)
+  // Список команды (для раздела «Компания» и дней рождения)
   if (path === '/api/users' && req.method === 'GET') {
     if (AUTH_REQUIRED && !(await currentUser(req))) return json(res, 401, { error: 'unauthorized' })
     const { rows } = await pool.query(
-      'SELECT id, login, name, initials, color, role, department, birthday FROM users ORDER BY name',
+      'SELECT id, login, name, initials, color, role, department, birthday, email, position FROM users ORDER BY name',
     )
     return json(res, 200, { users: rows.map(publicUser) })
+  }
+
+  // Сброс пароля сотрудника (только админ)
+  if (path === '/api/users/reset-password' && req.method === 'POST') {
+    const me = await currentUser(req)
+    if (!me || me.role !== 'admin') return json(res, 403, { error: 'forbidden' })
+    const body = await readBody(req)
+    let b = {}
+    try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
+    const userId = String(b.userId ?? '')
+    const password = String(b.password ?? '')
+    if (password.length < 6) return json(res, 400, { error: 'invalid_fields' })
+    const target = await pool.query('SELECT id FROM users WHERE id = $1', [userId])
+    if (!target.rows.length) return json(res, 404, { error: 'not_found' })
+    const { salt, hash } = hashPassword(password)
+    await pool.query('UPDATE users SET pass_salt = $1, pass_hash = $2 WHERE id = $3', [salt, hash, userId])
+    await pool.query('DELETE FROM sessions WHERE user_id = $1', [userId]).catch(() => {})
+    return json(res, 200, { ok: true })
   }
 
   if (path === '/api/auth/login' && req.method === 'POST') {

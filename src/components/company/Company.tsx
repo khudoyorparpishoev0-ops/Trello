@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Menu, Sun, Moon, Plus, X, Building2, Cake, Crown } from 'lucide-react'
+import { Menu, Sun, Moon, Plus, X, Building2, Cake, Crown, KeyRound } from 'lucide-react'
 import type { User } from '@/types'
 import { useBoard } from '@/store/boardStore'
 import { useTheme } from '@/store/theme'
 import { useAuth } from '@/store/auth'
-import { fetchUsers, type AuthUser } from '@/lib/api'
+import { fetchUsers, resetPassword, type AuthUser } from '@/lib/api'
 import { IconButton } from '@/components/ui/IconButton'
+import { Button } from '@/components/ui/Button'
 import { Avatar, AvatarStack } from '@/components/ui/Avatar'
 import { Pill } from '@/components/ui/Badge'
 
@@ -47,12 +48,14 @@ interface CompanyProps {
 
 export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
   const { state, boards, departments, actions } = useBoard()
-  const { authActive } = useAuth()
+  const { authActive, user: authUser } = useAuth()
   const { theme, toggle } = useTheme()
+  const isAdmin = authUser?.role === 'admin'
   const [users, setUsers] = useState<AuthUser[]>([])
   const [newDept, setNewDept] = useState('')
   const [newBoard, setNewBoard] = useState('')
   const [creatingBoard, setCreatingBoard] = useState(false)
+  const [resetFor, setResetFor] = useState<AuthUser | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -219,6 +222,7 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
                       <th className="px-2 py-2 font-semibold">E-mail</th>
                       <th className="px-2 py-2 font-semibold">Должность</th>
                       <th className="px-2 py-2 font-semibold">Отдел</th>
+                      {isAdmin && <th className="px-2 py-2" />}
                     </tr>
                   </thead>
                   <tbody>
@@ -234,6 +238,19 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
                         <td className="px-2 py-2 text-muted">{u.email || '—'}</td>
                         <td className="px-2 py-2 text-muted">{u.position || '—'}</td>
                         <td className="px-2 py-2 text-muted">{u.department || '—'}</td>
+                        {isAdmin && (
+                          <td className="px-2 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setResetFor(u)}
+                              title="Сбросить пароль"
+                              aria-label={`Сбросить пароль ${u.name}`}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-btn text-muted hover:bg-hover hover:text-fg"
+                            >
+                              <KeyRound size={15} strokeWidth={2} />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -262,6 +279,85 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
             </Section>
           )}
         </div>
+      </div>
+
+      {resetFor && <ResetPasswordModal user={resetFor} onClose={() => setResetFor(null)} />}
+    </div>
+  )
+}
+
+function ResetPasswordModal({ user, onClose }: { user: AuthUser; onClose: () => void }) {
+  const [pw, setPw] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const gen = () =>
+    setPw(Math.random().toString(36).slice(2, 6) + '-' + Math.random().toString(36).slice(2, 6))
+
+  const submit = async () => {
+    if (pw.length < 6) {
+      setResult({ ok: false, text: 'Пароль минимум 6 символов' })
+      return
+    }
+    setLoading(true)
+    const r = await resetPassword(user.id ?? '', pw)
+    setLoading(false)
+    if (r.ok) {
+      setResult({ ok: true, text: 'Пароль сброшен. Передайте его сотруднику — старый вход отключён.' })
+    } else {
+      setResult({ ok: false, text: r.error === 'forbidden' ? 'Сбрасывать может только админ' : 'Не удалось сбросить' })
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} aria-hidden />
+      <div className="relative w-full max-w-[380px] rounded-modal border border-line bg-elevated p-5 shadow-md animate-scale-in">
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-h3 font-semibold text-fg">Сбросить пароль</h3>
+          <IconButton icon={X} label="Закрыть" size="sm" onClick={onClose} />
+        </div>
+        <p className="mb-4 text-caption text-muted">Сотрудник: {user.name}</p>
+
+        {result?.ok ? (
+          <>
+            <div className="rounded-input bg-success-soft p-3 text-small text-success">{result.text}</div>
+            <div className="mt-3 rounded-input border border-line bg-bg px-3 py-2 font-mono text-small text-fg">
+              {pw}
+            </div>
+            <Button className="mt-4 w-full" onClick={onClose}>
+              Готово
+            </Button>
+          </>
+        ) : (
+          <>
+            <label className="mb-1.5 block text-caption font-medium text-muted">Новый пароль</label>
+            <div className="flex gap-2">
+              <input
+                value={pw}
+                onChange={(e) => setPw(e.target.value)}
+                placeholder="минимум 6 символов"
+                className="min-w-0 flex-1 rounded-input border border-line bg-bg px-3 py-2 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
+              />
+              <button
+                type="button"
+                onClick={gen}
+                className="shrink-0 rounded-btn bg-surface px-3 text-caption font-medium text-muted hover:text-fg"
+              >
+                Сгенерировать
+              </button>
+            </div>
+            {result && !result.ok && <p className="mt-2 text-caption text-error">{result.text}</p>}
+            <div className="mt-4 flex gap-2">
+              <Button onClick={submit} loading={loading} disabled={loading} className="flex-1">
+                Сбросить
+              </Button>
+              <Button variant="secondary" onClick={onClose}>
+                Отмена
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

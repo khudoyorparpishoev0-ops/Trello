@@ -89,6 +89,21 @@ export async function register(input: {
   }
 }
 
+/** Сброс пароля сотрудника (только админ). */
+export async function resetPassword(userId: string, password: string): Promise<AuthResult> {
+  try {
+    const res = await fetch(`${BASE}/users/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, password }),
+    })
+    const data = await res.json().catch(() => ({}))
+    return { ok: res.ok, error: data?.error }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+
 /** Список команды (для раздела «Команда» и дней рождения). */
 export async function fetchUsers(): Promise<AuthUser[]> {
   try {
