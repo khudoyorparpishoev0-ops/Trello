@@ -15,6 +15,8 @@ export interface AuthUser {
   initials: string
   color: string
   role: string
+  department?: string
+  birthday?: string
   shared?: boolean
 }
 
@@ -62,22 +64,36 @@ export async function login(loginName: string, password: string): Promise<AuthRe
 }
 
 /** Регистрация по коду-приглашению. */
-export async function register(
-  name: string,
-  loginName: string,
-  password: string,
-  code: string,
-): Promise<AuthResult> {
+export async function register(input: {
+  name: string
+  login: string
+  password: string
+  code: string
+  department: string
+  birthday: string
+}): Promise<AuthResult> {
   try {
     const res = await fetch(`${BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, login: loginName, password, code }),
+      body: JSON.stringify(input),
     })
     const data = await res.json().catch(() => ({}))
     return { ok: res.ok, error: data?.error, user: data?.user }
   } catch {
     return { ok: false, error: 'network' }
+  }
+}
+
+/** Список команды (для раздела «Команда» и дней рождения). */
+export async function fetchUsers(): Promise<AuthUser[]> {
+  try {
+    const res = await fetch(`${BASE}/users`, { headers: { Accept: 'application/json' } })
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data?.users) ? (data.users as AuthUser[]) : []
+  } catch {
+    return []
   }
 }
 

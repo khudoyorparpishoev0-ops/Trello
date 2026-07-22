@@ -48,6 +48,8 @@ async function ensureSchema() {
   await pool.query(`CREATE TABLE IF NOT EXISTS sessions (
     token text PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now())`)
   await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_id text`)
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS department text`)
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birthday text`)
 }
 
 async function initWithRetry() {
@@ -139,14 +141,27 @@ async function currentUser(req) {
   if (!rows.length) return null
   const userId = rows[0].user_id
   if (userId) {
-    const u = await pool.query('SELECT id, login, name, initials, color, role FROM users WHERE id = $1', [userId])
+    const u = await pool.query(
+      'SELECT id, login, name, initials, color, role, department, birthday FROM users WHERE id = $1',
+      [userId],
+    )
     return u.rows[0] ?? null
   }
   return { shared: true, name: 'Администратор', initials: 'АД', color: '#16A34A', role: 'admin' }
 }
 function publicUser(u) {
   if (!u) return null
-  return { id: u.id, login: u.login, name: u.name, initials: u.initials, color: u.color, role: u.role, shared: !!u.shared }
+  return {
+    id: u.id,
+    login: u.login,
+    name: u.name,
+    initials: u.initials,
+    color: u.color,
+    role: u.role,
+    department: u.department ?? '',
+    birthday: u.birthday ?? '',
+    shared: !!u.shared,
+  }
 }
 
 // ——— Роуты ———
@@ -179,8 +194,17 @@ async function handle(req, res) {
     const name = String(b.name ?? '').trim()
     const login = String(b.login ?? '').trim().toLowerCase()
     const password = String(b.password ?? '')
+    const department = String(b.department ?? '').trim()
+    const birthday = String(b.birthday ?? '').trim()
     if (!safeEqual(String(b.code ?? ''), INVITE_CODE)) return json(res, 403, { error: 'bad_code' })
-    if (name.length < 2 || login.length < 3 || password.length < 6) return json(res, 400, { error: 'invalid_fields' })
+    if (
+      name.length < 2 ||
+      login.length < 3 ||
+      password.length < 6 ||
+      department.length < 1 ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(birthday)
+    )
+      return json(res, 400, { error: 'invalid_fields' })
     const exists = await pool.query('SELECT 1 FROM users WHERE login = $1', [login])
     if (exists.rows.length) return json(res, 409, { error: 'login_taken' })
     const count = await pool.query('SELECT count(*)::int AS n FROM users')
@@ -190,12 +214,26 @@ async function handle(req, res) {
     const initials = initialsFrom(name)
     const color = colorFor(login)
     await pool.query(
-      `INSERT INTO users (id, login, name, initials, color, role, pass_salt, pass_hash)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [id, login, name, initials, color, role, salt, hash],
+      `INSERT INTO users (id, login, name, initials, color, role, pass_salt, pass_hash, department, birthday)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [id, login, name, initials, color, role, salt, hash, department, birthday],
     )
     const cookie = await newSession(id)
-    return json(res, 200, { ok: true, user: publicUser({ id, login, name, initials, color, role }) }, { 'Set-Cookie': cookie })
+    return json(
+      res,
+      200,
+      { ok: true, user: publicUser({ id, login, name, initials, color, role, department, birthday }) },
+      { 'Set-Cookie': cookie },
+    )
+  }
+
+  // Список команды (для раздела «Команда» и дней рождения)
+  if (path === '/api/users' && req.method === 'GET') {
+    if (AUTH_REQUIRED && !(await currentUser(req))) return json(res, 401, { error: 'unauthorized' })
+    const { rows } = await pool.query(
+      'SELECT id, login, name, initials, color, role, department, birthday FROM users ORDER BY name',
+    )
+    return json(res, 200, { users: rows.map(publicUser) })
   }
 
   if (path === '/api/auth/login' && req.method === 'POST') {

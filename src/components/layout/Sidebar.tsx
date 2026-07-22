@@ -16,13 +16,13 @@ import { useAuth } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
-export type AppView = 'board' | 'dashboard'
+export type AppView = 'board' | 'dashboard' | 'team'
 
 const NAV: { icon: LucideIcon; label: string; view?: AppView }[] = [
   { icon: SquareKanban, label: 'Доски', view: 'board' },
   { icon: LayoutDashboard, label: 'Дашборд', view: 'dashboard' },
   { icon: Calendar, label: 'Календарь' },
-  { icon: Users, label: 'Команда' },
+  { icon: Users, label: 'Команда', view: 'team' },
   { icon: BarChart3, label: 'Отчёты' },
 ]
 

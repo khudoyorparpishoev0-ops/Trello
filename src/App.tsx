@@ -5,6 +5,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { Board, type Filters } from '@/components/board/Board'
 import { CardDetailDrawer } from '@/components/board/CardDetailDrawer'
 import { Dashboard } from '@/components/dashboard/Dashboard'
+import { Team } from '@/components/team/Team'
 
 export default function App() {
   const [view, setView] = useState<AppView>('board')
@@ -17,16 +18,16 @@ export default function App() {
       <Sidebar activeView={view} onSelectView={setView} />
       <MobileNav open={navOpen} onClose={() => setNavOpen(false)} activeView={view} onSelectView={setView} />
       <div className="flex min-w-0 flex-1 flex-col">
-        {view === 'board' ? (
+        {view === 'board' && (
           <>
             <TopBar filters={filters} onFiltersChange={setFilters} onMenuClick={() => setNavOpen(true)} />
             <main className="min-h-0 flex-1">
               <Board filters={filters} onOpenCard={setOpenCardId} />
             </main>
           </>
-        ) : (
-          <Dashboard onMenuClick={() => setNavOpen(true)} />
         )}
+        {view === 'dashboard' && <Dashboard onMenuClick={() => setNavOpen(true)} />}
+        {view === 'team' && <Team onMenuClick={() => setNavOpen(true)} />}
       </div>
       <CardDetailDrawer cardId={openCardId} onClose={() => setOpenCardId(null)} />
     </div>

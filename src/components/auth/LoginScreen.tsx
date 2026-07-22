@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { SquareKanban, Lock, User, IdCard, KeyRound } from 'lucide-react'
+import { SquareKanban, Lock, User, IdCard, KeyRound, Building2, Cake } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { login as apiLogin, register as apiRegister, type AuthUser } from '@/lib/api'
@@ -25,6 +25,8 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
   const [loginName, setLoginName] = useState('')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
+  const [department, setDepartment] = useState('')
+  const [birthday, setBirthday] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -39,9 +41,16 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
       if (r.ok) onSuccess(r.user)
       else setError(ERRORS[r.error ?? ''] ?? 'Не удалось войти')
     } else {
-      if (!name.trim() || !loginName.trim() || !password || !code.trim()) return
+      if (!name.trim() || !loginName.trim() || !password || !code.trim() || !department.trim() || !birthday) return
       setLoading(true)
-      const r = await apiRegister(name.trim(), loginName.trim(), password, code.trim())
+      const r = await apiRegister({
+        name: name.trim(),
+        login: loginName.trim(),
+        password,
+        code: code.trim(),
+        department: department.trim(),
+        birthday,
+      })
       setLoading(false)
       if (r.ok) onSuccess(r.user)
       else setError(ERRORS[r.error ?? ''] ?? 'Не удалось зарегистрироваться')
@@ -91,15 +100,33 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
           )}
 
           {mode === 'register' && (
-            <Field icon={IdCard} label="Имя">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoFocus
-                placeholder="Иван Петров"
-                className={inputCls}
-              />
-            </Field>
+            <>
+              <Field icon={IdCard} label="Ф.И.О">
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoFocus
+                  placeholder="Иванов Иван Иванович"
+                  className={inputCls}
+                />
+              </Field>
+              <Field icon={Building2} label="Отдел">
+                <input
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  placeholder="Разработка"
+                  className={inputCls}
+                />
+              </Field>
+              <Field icon={Cake} label="Дата рождения">
+                <input
+                  type="date"
+                  value={birthday}
+                  onChange={(e) => setBirthday(e.target.value)}
+                  className={cn(inputCls, '[color-scheme:dark]')}
+                />
+              </Field>
+            </>
           )}
 
           <Field icon={User} label="Логин">
