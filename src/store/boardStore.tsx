@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { AppData, Board, BoardState, Card, Checklist, List, Priority } from '@/types'
-import { createSeedState, emptyBoard } from '@/data/seed'
+import { createSeedState, emptyBoard, DEFAULT_DEPARTMENTS } from '@/data/seed'
 import { loadBoard, saveBoard } from '@/lib/api'
 import { uid } from '@/lib/utils'
 
@@ -38,6 +38,8 @@ type Action =
   | { type: 'ADD_BOARD'; name: string }
   | { type: 'RENAME_BOARD'; boardId: string; name: string }
   | { type: 'DELETE_BOARD'; boardId: string }
+  | { type: 'ADD_DEPARTMENT'; name: string }
+  | { type: 'REMOVE_DEPARTMENT'; name: string }
 
 function removeFrom(arr: string[], id: string): string[] {
   return arr.filter((x) => x !== id)
@@ -238,6 +240,15 @@ function appReducer(state: AppData, action: Action): AppData {
       return { ...state, boards: nextBoards, lists: nextLists, cards: nextCards, boardOrder: order, activeBoardId: active }
     }
 
+    case 'ADD_DEPARTMENT': {
+      const n = action.name.trim()
+      if (!n || state.departments.includes(n)) return state
+      return { ...state, departments: [...state.departments, n] }
+    }
+
+    case 'REMOVE_DEPARTMENT':
+      return { ...state, departments: state.departments.filter((d) => d !== action.name) }
+
     default:
       return state
   }
@@ -250,7 +261,9 @@ function isAppData(x: unknown): x is AppData {
 
 /** Старый формат (одна доска) → новый (несколько досок). */
 function migrate(raw: unknown): AppData {
-  if (isAppData(raw)) return raw
+  if (isAppData(raw)) {
+    return { ...raw, departments: raw.departments?.length ? raw.departments : [...DEFAULT_DEPARTMENTS] }
+  }
   const old = raw as BoardState
   const memberIds = old.board?.memberIds ?? Object.keys(old.users ?? {})
   const boards: Record<string, Board> = {}
@@ -277,6 +290,7 @@ function migrate(raw: unknown): AppData {
     lists: { ...(old.lists ?? {}), ...extraLists },
     cards: old.cards ?? {},
     labels: old.labels ?? {},
+    departments: [...DEFAULT_DEPARTMENTS],
   }
 }
 
@@ -316,15 +330,19 @@ export interface BoardActions {
   addBoard: (name: string) => void
   renameBoard: (boardId: string, name: string) => void
   deleteBoard: (boardId: string) => void
+  addDepartment: (name: string) => void
+  removeDepartment: (name: string) => void
 }
 
 interface BoardContextValue {
   state: BoardState
   actions: BoardActions
   mode: SyncMode
-  /** Доски пространства (для сайдбара). */
-  boards: { id: string; name: string }[]
+  /** Доски пространства (для сайдбара и «Проектов»). */
+  boards: { id: string; name: string; memberIds: string[] }[]
   activeBoardId: string
+  /** Отделы компании. */
+  departments: string[]
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -382,19 +400,24 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       addBoard: (name) => dispatch({ type: 'ADD_BOARD', name }),
       renameBoard: (boardId, name) => dispatch({ type: 'RENAME_BOARD', boardId, name }),
       deleteBoard: (boardId) => dispatch({ type: 'DELETE_BOARD', boardId }),
+      addDepartment: (name) => dispatch({ type: 'ADD_DEPARTMENT', name }),
+      removeDepartment: (name) => dispatch({ type: 'REMOVE_DEPARTMENT', name }),
     }),
     [],
   )
 
   const state = useMemo(() => deriveView(app), [app])
   const boards = useMemo(
-    () => app.boardOrder.filter((id) => app.boards[id]).map((id) => ({ id, name: app.boards[id].name })),
+    () =>
+      app.boardOrder
+        .filter((id) => app.boards[id])
+        .map((id) => ({ id, name: app.boards[id].name, memberIds: app.boards[id].memberIds })),
     [app.boardOrder, app.boards],
   )
 
   const value = useMemo(
-    () => ({ state, actions, mode, boards, activeBoardId: app.activeBoardId }),
-    [state, actions, mode, boards, app.activeBoardId],
+    () => ({ state, actions, mode, boards, activeBoardId: app.activeBoardId, departments: app.departments }),
+    [state, actions, mode, boards, app.activeBoardId, app.departments],
   )
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
 }

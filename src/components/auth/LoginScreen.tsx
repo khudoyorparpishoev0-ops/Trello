@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { SquareKanban, Lock, User, IdCard, KeyRound, Building2, Cake } from 'lucide-react'
+import { SquareKanban, Lock, User, IdCard, KeyRound, Building2, Cake, Briefcase, Mail } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { login as apiLogin, register as apiRegister, type AuthUser } from '@/lib/api'
@@ -28,6 +28,8 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
   const [code, setCode] = useState('')
   const [department, setDepartment] = useState('')
   const [birthday, setBirthday] = useState('')
+  const [email, setEmail] = useState('')
+  const [position, setPosition] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   // Логин авто-создаётся из ФИО, пока пользователь не изменит его вручную.
@@ -49,7 +51,17 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
       if (r.ok) onSuccess(r.user)
       else setError(ERRORS[r.error ?? ''] ?? 'Не удалось войти')
     } else {
-      if (!name.trim() || !loginName.trim() || !password || !code.trim() || !department.trim() || !birthday) return
+      if (
+        !name.trim() ||
+        !loginName.trim() ||
+        !password ||
+        !code.trim() ||
+        !department.trim() ||
+        !birthday ||
+        !email.trim() ||
+        !position.trim()
+      )
+        return
       setLoading(true)
       const r = await apiRegister({
         name: name.trim(),
@@ -58,6 +70,8 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
         code: code.trim(),
         department: department.trim(),
         birthday,
+        email: email.trim(),
+        position: position.trim(),
       })
       setLoading(false)
       if (r.ok) onSuccess(r.user)
@@ -119,11 +133,29 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
                   className={inputCls}
                 />
               </Field>
+              <Field icon={Briefcase} label="Должность">
+                <input
+                  value={position}
+                  onChange={(e) => setPosition(e.target.value)}
+                  placeholder="Руководитель отдела"
+                  className={inputCls}
+                />
+              </Field>
               <Field icon={Building2} label="Отдел">
                 <input
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
                   placeholder="Разработка"
+                  className={inputCls}
+                />
+              </Field>
+              <Field icon={Mail} label="E-mail">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  placeholder="ivan@ithona.tj"
                   className={inputCls}
                 />
               </Field>

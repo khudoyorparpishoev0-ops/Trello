@@ -140,4 +140,6 @@ export interface AppData {
   lists: Record<string, List>
   cards: Record<string, Card>
   labels: Record<string, Label>
+  /** Отделы компании (управляемый список). */
+  departments: string[]
 }

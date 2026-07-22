@@ -9,6 +9,16 @@ import type {
 } from '@/types'
 import { uid } from '@/lib/utils'
 
+/** Отделы компании по умолчанию. */
+export const DEFAULT_DEPARTMENTS = [
+  'Стратегического планирования',
+  'Информационных технологий (IT)',
+  'Закупок и снабжения',
+  'Отдел проектирования',
+  'Производственный отдел',
+  'Финансовый отдел',
+]
+
 /** Новая пустая доска с тремя списками (To Do / In Progress / Done). */
 export function emptyBoard(
   id: string,
@@ -381,5 +391,6 @@ export function createSeedState(): AppData {
     lists: { ...platformLists, ...mobile.lists, ...infra.lists },
     cards,
     labels,
+    departments: [...DEFAULT_DEPARTMENTS],
   }
 }

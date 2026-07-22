@@ -5,7 +5,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { Board, type Filters } from '@/components/board/Board'
 import { CardDetailDrawer } from '@/components/board/CardDetailDrawer'
 import { Dashboard } from '@/components/dashboard/Dashboard'
-import { Team } from '@/components/team/Team'
+import { Company } from '@/components/company/Company'
 import { Calendar } from '@/components/calendar/Calendar'
 import { Reports } from '@/components/reports/Reports'
 
@@ -29,7 +29,9 @@ export default function App() {
           </>
         )}
         {view === 'dashboard' && <Dashboard onMenuClick={() => setNavOpen(true)} />}
-        {view === 'team' && <Team onMenuClick={() => setNavOpen(true)} />}
+        {view === 'company' && (
+          <Company onMenuClick={() => setNavOpen(true)} onNavigateBoard={() => setView('board')} />
+        )}
         {view === 'calendar' && (
           <Calendar onMenuClick={() => setNavOpen(true)} onOpenCard={setOpenCardId} />
         )}

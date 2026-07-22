@@ -17,6 +17,8 @@ export interface AuthUser {
   role: string
   department?: string
   birthday?: string
+  email?: string
+  position?: string
   shared?: boolean
 }
 
@@ -71,6 +73,8 @@ export async function register(input: {
   code: string
   department: string
   birthday: string
+  email: string
+  position: string
 }): Promise<AuthResult> {
   try {
     const res = await fetch(`${BASE}/auth/register`, {

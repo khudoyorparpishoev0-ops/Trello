@@ -50,6 +50,8 @@ async function ensureSchema() {
   await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_id text`)
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS department text`)
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birthday text`)
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email text`)
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS position text`)
 }
 
 async function initWithRetry() {
@@ -142,7 +144,7 @@ async function currentUser(req) {
   const userId = rows[0].user_id
   if (userId) {
     const u = await pool.query(
-      'SELECT id, login, name, initials, color, role, department, birthday FROM users WHERE id = $1',
+      'SELECT id, login, name, initials, color, role, department, birthday, email, position FROM users WHERE id = $1',
       [userId],
     )
     return u.rows[0] ?? null
@@ -160,6 +162,8 @@ function publicUser(u) {
     role: u.role,
     department: u.department ?? '',
     birthday: u.birthday ?? '',
+    email: u.email ?? '',
+    position: u.position ?? '',
     shared: !!u.shared,
   }
 }
@@ -196,12 +200,16 @@ async function handle(req, res) {
     const password = String(b.password ?? '')
     const department = String(b.department ?? '').trim()
     const birthday = String(b.birthday ?? '').trim()
+    const email = String(b.email ?? '').trim()
+    const position = String(b.position ?? '').trim()
     if (!safeEqual(String(b.code ?? ''), INVITE_CODE)) return json(res, 403, { error: 'bad_code' })
     if (
       name.length < 2 ||
       login.length < 3 ||
       password.length < 6 ||
       department.length < 1 ||
+      position.length < 2 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
       !/^\d{4}-\d{2}-\d{2}$/.test(birthday)
     )
       return json(res, 400, { error: 'invalid_fields' })
@@ -214,15 +222,15 @@ async function handle(req, res) {
     const initials = initialsFrom(name)
     const color = colorFor(login)
     await pool.query(
-      `INSERT INTO users (id, login, name, initials, color, role, pass_salt, pass_hash, department, birthday)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [id, login, name, initials, color, role, salt, hash, department, birthday],
+      `INSERT INTO users (id, login, name, initials, color, role, pass_salt, pass_hash, department, birthday, email, position)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [id, login, name, initials, color, role, salt, hash, department, birthday, email, position],
     )
     const cookie = await newSession(id)
     return json(
       res,
       200,
-      { ok: true, user: publicUser({ id, login, name, initials, color, role, department, birthday }) },
+      { ok: true, user: publicUser({ id, login, name, initials, color, role, department, birthday, email, position }) },
       { 'Set-Cookie': cookie },
     )
   }
