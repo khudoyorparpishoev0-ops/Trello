@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Заготовка API IT-HONA TaskBoard. Пока только health-check и проверка связи с PostgreSQL/Redis. Реальная логика — следующий этап по ТЗ.",
+  "description": "API IT-HONA TaskBoard. Хранение доски в PostgreSQL (GET/PUT /api/board) + health-check. Вход/пользователи и реальное время — следующие этапы.",
   "scripts": {
     "start": "node server.js"
   },

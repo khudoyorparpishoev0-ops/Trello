@@ -8,6 +8,8 @@ import {
   SlidersHorizontal,
   Check,
   Menu,
+  Cloud,
+  CloudOff,
 } from 'lucide-react'
 import type { Filters } from '@/components/board/Board'
 import { useBoard } from '@/store/boardStore'
@@ -26,7 +28,7 @@ interface TopBarProps {
 }
 
 export function TopBar({ filters, onFiltersChange, onMenuClick }: TopBarProps) {
-  const { state } = useBoard()
+  const { state, mode } = useBoard()
   const { theme, toggle } = useTheme()
   const members = state.board.memberIds.map((id) => state.users[id]).filter(Boolean)
 
@@ -76,6 +78,25 @@ export function TopBar({ filters, onFiltersChange, onMenuClick }: TopBarProps) {
             ))}
           </div>
 
+          {mode !== 'loading' && (
+            <span
+              title={
+                mode === 'server'
+                  ? 'Данные сохраняются на сервере'
+                  : 'Локальный режим — сервер недоступен, изменения не сохраняются'
+              }
+              className={cn(
+                'inline-flex h-8 w-8 items-center justify-center rounded-btn',
+                mode === 'server' ? 'text-success' : 'text-warning',
+              )}
+            >
+              {mode === 'server' ? (
+                <Cloud size={16} strokeWidth={2} />
+              ) : (
+                <CloudOff size={16} strokeWidth={2} />
+              )}
+            </span>
+          )}
           <IconButton icon={Bell} label="Уведомления" size="sm" className="hidden sm:inline-flex" />
           <IconButton
             icon={theme === 'dark' ? Sun : Moon}

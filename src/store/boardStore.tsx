@@ -1,20 +1,28 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
+  useRef,
+  useState,
   type ReactNode,
 } from 'react'
 import type { BoardState, Card, Checklist, Priority } from '@/types'
 import { createSeedState } from '@/data/seed'
+import { loadBoard, saveBoard } from '@/lib/api'
 import { uid } from '@/lib/utils'
 
 /**
- * In-memory store доски (без бэкенда).
- * Действия — оптимистичные: клиент видит изменение сразу (ТЗ логики §8.1).
+ * Store доски. Оптимистичные действия: клиент видит изменение сразу (ТЗ логики §8.1),
+ * затем состояние сохраняется на сервере. Если бэкенд недоступен — работаем локально.
  */
 
+/** Режим синхронизации с сервером. */
+export type SyncMode = 'loading' | 'server' | 'local'
+
 type Action =
+  | { type: 'HYDRATE'; state: BoardState }
   | { type: 'MOVE_CARD'; cardId: string; fromListId: string; toListId: string; toIndex: number }
   | { type: 'ADD_CARD'; listId: string; title: string; atStart?: boolean }
   | { type: 'UPDATE_CARD'; cardId: string; patch: Partial<Card> }
@@ -33,6 +41,9 @@ function removeFrom(arr: string[], id: string): string[] {
 
 function boardReducer(state: BoardState, action: Action): BoardState {
   switch (action.type) {
+    case 'HYDRATE':
+      return action.state
+
     case 'MOVE_CARD': {
       const { cardId, fromListId, toListId, toIndex } = action
       const from = state.lists[fromListId]
@@ -217,12 +228,47 @@ export interface BoardActions {
 interface BoardContextValue {
   state: BoardState
   actions: BoardActions
+  /** Синхронизируется ли доска с сервером. */
+  mode: SyncMode
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
 
 export function BoardProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(boardReducer, undefined, createSeedState)
+  const [mode, setMode] = useState<SyncMode>('loading')
+  const loadedRef = useRef(false)
+
+  // Загрузка доски с сервера при старте. Нет данных/бэкенда — работаем локально.
+  useEffect(() => {
+    let cancelled = false
+    void loadBoard().then(async (data) => {
+      if (cancelled) return
+      if (data) {
+        dispatch({ type: 'HYDRATE', state: data })
+        setMode('server')
+      } else {
+        // Сервер пуст или недоступен — пробуем записать текущее (сид) состояние.
+        const ok = await saveBoard(state)
+        setMode(ok ? 'server' : 'local')
+      }
+      loadedRef.current = true
+    })
+    return () => {
+      cancelled = true
+    }
+    // Только при монтировании: state здесь — начальный сид.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Сохранение изменений на сервер (с debounce), после первичной загрузки.
+  useEffect(() => {
+    if (!loadedRef.current) return
+    const t = setTimeout(() => {
+      void saveBoard(state).then((ok) => setMode(ok ? 'server' : 'local'))
+    }, 700)
+    return () => clearTimeout(t)
+  }, [state])
 
   const actions = useMemo<BoardActions>(
     () => ({
@@ -245,7 +291,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const value = useMemo(() => ({ state, actions }), [state, actions])
+  const value = useMemo(() => ({ state, actions, mode }), [state, actions, mode])
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
 }
 
