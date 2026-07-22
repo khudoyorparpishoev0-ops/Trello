@@ -40,6 +40,7 @@ services:
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       AUTH_LOGIN: ${AUTH_LOGIN:-admin}
       AUTH_PASSWORD: ${AUTH_PASSWORD:-}
+      INVITE_CODE: ${INVITE_CODE:-}
     expose:
       - "3000"
     depends_on:
