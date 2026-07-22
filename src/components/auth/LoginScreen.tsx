@@ -3,6 +3,7 @@ import { SquareKanban, Lock, User, IdCard, KeyRound, Building2, Cake } from 'luc
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { login as apiLogin, register as apiRegister, type AuthUser } from '@/lib/api'
+import { loginFromName } from '@/lib/translit'
 import { cn } from '@/lib/utils'
 
 interface LoginScreenProps {
@@ -29,6 +30,13 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
   const [birthday, setBirthday] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // Логин авто-создаётся из ФИО, пока пользователь не изменит его вручную.
+  const [loginEdited, setLoginEdited] = useState(false)
+
+  const onNameChange = (value: string) => {
+    setName(value)
+    if (mode === 'register' && !loginEdited) setLoginName(loginFromName(value))
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -60,6 +68,7 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
   const switchMode = (m: 'login' | 'register') => {
     setMode(m)
     setError('')
+    if (m === 'register') setLoginEdited(false)
   }
 
   return (
@@ -104,7 +113,7 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
               <Field icon={IdCard} label="Ф.И.О">
                 <input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => onNameChange(e.target.value)}
                   autoFocus
                   placeholder="Иванов Иван Иванович"
                   className={inputCls}
@@ -129,16 +138,32 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
             </>
           )}
 
-          <Field icon={User} label="Логин">
-            <input
-              value={loginName}
-              onChange={(e) => setLoginName(e.target.value)}
-              autoComplete="username"
-              autoFocus={mode === 'login'}
-              placeholder={mode === 'register' ? 'ivan' : 'admin'}
-              className={inputCls}
-            />
-          </Field>
+          <div className="mb-4">
+            <label className="mb-1.5 block text-caption font-medium text-muted">Логин</label>
+            <div className="relative">
+              <User
+                size={16}
+                strokeWidth={2}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+              />
+              <input
+                value={loginName}
+                onChange={(e) => {
+                  setLoginName(e.target.value)
+                  setLoginEdited(true)
+                }}
+                autoComplete="username"
+                autoFocus={mode === 'login'}
+                placeholder={mode === 'register' ? 'фамилия латиницей' : 'admin'}
+                className={inputCls}
+              />
+            </div>
+            {mode === 'register' && (
+              <p className="mt-1 text-[11px] text-faint">
+                Создаётся из Ф.И.О автоматически — можно изменить
+              </p>
+            )}
+          </div>
 
           <Field icon={Lock} label="Пароль">
             <input
