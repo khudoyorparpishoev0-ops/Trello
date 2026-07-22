@@ -1,4 +1,4 @@
-import type { BoardState } from '@/types'
+import type { AppData, BoardState } from '@/types'
 
 /**
  * Клиент API доски. Тот же origin (Caddy проксирует /api → сервис api).
@@ -106,22 +106,24 @@ export async function logout(): Promise<void> {
   }
 }
 
-/** Загрузить доску с сервера. null — если данных нет или бэкенд недоступен. */
-export async function loadBoard(): Promise<BoardState | null> {
+/**
+ * Загрузить состояние с сервера (новый формат AppData или старый BoardState —
+ * миграцию делает store). null — если данных нет или бэкенд недоступен.
+ */
+export async function loadBoard(): Promise<AppData | BoardState | null> {
   try {
     const res = await fetch(`${BASE}/board`, { headers: { Accept: 'application/json' } })
     if (!res.ok) return null
-    const data = (await res.json()) as BoardState | null
-    // Считаем валидным только если это похоже на состояние доски.
-    if (data && data.board && data.lists && data.cards) return data
+    const data = await res.json()
+    if (data && data.lists && data.cards && (data.boards || data.board)) return data
     return null
   } catch {
     return null
   }
 }
 
-/** Сохранить доску на сервер. true — успех. */
-export async function saveBoard(state: BoardState): Promise<boolean> {
+/** Сохранить состояние на сервер. true — успех. */
+export async function saveBoard(state: AppData): Promise<boolean> {
   try {
     const res = await fetch(`${BASE}/board`, {
       method: 'PUT',

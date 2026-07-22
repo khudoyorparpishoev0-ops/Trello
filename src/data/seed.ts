@@ -1,11 +1,27 @@
 import type {
+  AppData,
   Attachment,
-  BoardState,
+  Board,
   Card,
   Comment,
+  List,
   User,
 } from '@/types'
 import { uid } from '@/lib/utils'
+
+/** Новая пустая доска с тремя списками (To Do / In Progress / Done). */
+export function emptyBoard(
+  id: string,
+  name: string,
+  memberIds: string[],
+): { board: Board; lists: Record<string, List> } {
+  const todo: List = { id: uid('list'), title: 'To Do', cardIds: [] }
+  const prog: List = { id: uid('list'), title: 'In Progress', cardIds: [], wipLimit: 5 }
+  const done: List = { id: uid('list'), title: 'Done', cardIds: [] }
+  const lists: Record<string, List> = { [todo.id]: todo, [prog.id]: prog, [done.id]: done }
+  const board: Board = { id, name, visibility: 'private', listIds: [todo.id, prog.id, done.id], memberIds }
+  return { board, lists }
+}
 
 /**
  * Демо-данные доски «Платформа задач» (разработка IT-HONA TaskBoard).
@@ -59,7 +75,7 @@ function mkAttachments(names: string[]): Attachment[] {
   })
 }
 
-export function createSeedState(): BoardState {
+export function createSeedState(): AppData {
   const { at } = buildDates()
 
   const labels = {
@@ -316,7 +332,7 @@ export function createSeedState(): BoardState {
   const cards: Record<string, Card> = {}
   for (const c of cardsArr) cards[c.id] = c
 
-  const lists = {
+  const platformLists: Record<string, List> = {
     list_todo: {
       id: 'list_todo',
       title: 'To Do',
@@ -337,28 +353,33 @@ export function createSeedState(): BoardState {
 
   const users: Record<string, User> = {}
   for (const u of USERS) users[u.id] = u
+  const memberIds = USERS.map((u) => u.id)
 
-  return {
-    currentUserId: 'u_alisher',
-    board: {
+  // Ещё две доски пространства — пока пустые, с дефолтными списками.
+  const mobile = emptyBoard('board_mobile', 'Мобильное приложение', memberIds)
+  const infra = emptyBoard('board_infra', 'Инфраструктура', memberIds)
+
+  const boards: Record<string, Board> = {
+    board_platform: {
       id: 'board_platform',
       name: 'Платформа задач',
       visibility: 'private',
       listIds: ['list_todo', 'list_progress', 'list_done'],
-      memberIds: USERS.map((u) => u.id),
+      memberIds,
     },
-    workspace: {
-      id: 'ws_ithona',
-      name: 'IT-HONA',
-      boards: [
-        { id: 'board_platform', name: 'Платформа задач' },
-        { id: 'board_mobile', name: 'Мобильное приложение' },
-        { id: 'board_infra', name: 'Инфраструктура' },
-      ],
-    },
-    lists,
+    board_mobile: mobile.board,
+    board_infra: infra.board,
+  }
+
+  return {
+    workspace: { id: 'ws_ithona', name: 'IT-HONA', boards: [] },
+    users,
+    currentUserId: 'u_alisher',
+    boards,
+    boardOrder: ['board_platform', 'board_mobile', 'board_infra'],
+    activeBoardId: 'board_platform',
+    lists: { ...platformLists, ...mobile.lists, ...infra.lists },
     cards,
     labels,
-    users,
   }
 }

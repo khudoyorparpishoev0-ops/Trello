@@ -108,7 +108,10 @@ export interface Workspace {
   boards: { id: string; name: string }[]
 }
 
-/** Нормализованное состояние доски в памяти. */
+/**
+ * Представление одной (активной) доски — то, что видят компоненты.
+ * Списки/карточки здесь уже отфильтрованы по активной доске.
+ */
 export interface BoardState {
   board: Board
   lists: Record<string, List>
@@ -118,4 +121,23 @@ export interface BoardState {
   workspace: Workspace
   /** Текущий пользователь (для фильтра «мои карточки», @-упоминаний). */
   currentUserId: string
+}
+
+/**
+ * Полное состояние приложения (что хранится на сервере).
+ * Несколько досок в одном пространстве; списки/карточки — глобальные словари,
+ * доска ссылается на свои списки через listIds.
+ */
+export interface AppData {
+  workspace: Workspace
+  users: Record<string, User>
+  currentUserId: string
+  boards: Record<string, Board>
+  /** Порядок досок в пространстве. */
+  boardOrder: string[]
+  /** Активная (открытая) доска. */
+  activeBoardId: string
+  lists: Record<string, List>
+  cards: Record<string, Card>
+  labels: Record<string, Label>
 }

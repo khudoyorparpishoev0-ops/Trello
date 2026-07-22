@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   SquareKanban,
   LayoutDashboard,
@@ -8,6 +9,7 @@ import {
   ChevronRight,
   Plus,
   LogOut,
+  X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { User } from '@/types'
@@ -34,8 +36,20 @@ interface SidebarContentProps {
 
 /** Внутреннее наполнение боковой панели. Переиспользуется на десктопе и в мобильном drawer. */
 export function SidebarContent({ activeView, onSelectView, onNavigate }: SidebarContentProps) {
-  const { state } = useBoard()
+  const { state, boards, activeBoardId, actions } = useBoard()
   const { authActive, user: authUser, logout } = useAuth()
+  const [creating, setCreating] = useState(false)
+  const [newBoardName, setNewBoardName] = useState('')
+
+  const submitBoard = () => {
+    const n = newBoardName.trim()
+    if (!n) return
+    actions.addBoard(n)
+    setNewBoardName('')
+    setCreating(false)
+    onSelectView('board')
+    onNavigate?.()
+  }
   // Если вошли по личному аккаунту — показываем его; иначе участника доски.
   const user: User = authUser
     ? {
@@ -96,17 +110,29 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-faint">
           Рабочее пространство
         </span>
-        <Plus size={14} strokeWidth={2} className="text-faint" />
+        <button
+          type="button"
+          onClick={() => setCreating((c) => !c)}
+          aria-label="Создать доску"
+          title="Создать доску"
+          className="rounded-[6px] p-0.5 text-faint transition-colors hover:bg-hover hover:text-fg"
+        >
+          {creating ? <X size={14} strokeWidth={2} /> : <Plus size={14} strokeWidth={2} />}
+        </button>
       </div>
       <div className="px-3">
         <div className="mb-1 px-3 text-caption font-semibold text-muted">{state.workspace.name}</div>
-        {state.workspace.boards.map((b) => {
-          const active = b.id === state.board.id && activeView === 'board'
+
+        {boards.map((b) => {
+          const active = b.id === activeBoardId && activeView === 'board'
           return (
             <button
               key={b.id}
               type="button"
-              onClick={() => go('board')}
+              onClick={() => {
+                actions.switchBoard(b.id)
+                go('board')
+              }}
               className={cn(
                 'flex w-full items-center gap-2 rounded-btn px-3 py-2 text-small transition-colors duration-200 ease-smooth',
                 active ? 'bg-brand-soft font-medium text-brand' : 'text-muted hover:bg-hover hover:text-fg',
@@ -118,6 +144,32 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
             </button>
           )
         })}
+
+        {creating && (
+          <div className="mt-1 px-1">
+            <input
+              autoFocus
+              value={newBoardName}
+              onChange={(e) => setNewBoardName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitBoard()
+                if (e.key === 'Escape') {
+                  setNewBoardName('')
+                  setCreating(false)
+                }
+              }}
+              placeholder="Название доски…"
+              className="w-full rounded-input border border-line bg-bg px-3 py-2 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
+            />
+            <button
+              type="button"
+              onClick={submitBoard}
+              className="mt-1.5 w-full rounded-btn bg-brand px-3 py-1.5 text-caption font-medium text-white hover:bg-[#15913f]"
+            >
+              Создать
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Пользователь */}
