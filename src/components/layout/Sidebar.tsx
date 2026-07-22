@@ -10,6 +10,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { User } from '@/types'
 import { useBoard } from '@/store/boardStore'
 import { useAuth } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
@@ -34,8 +35,18 @@ interface SidebarContentProps {
 /** Внутреннее наполнение боковой панели. Переиспользуется на десктопе и в мобильном drawer. */
 export function SidebarContent({ activeView, onSelectView, onNavigate }: SidebarContentProps) {
   const { state } = useBoard()
-  const { authActive, logout } = useAuth()
-  const user = state.users[state.currentUserId]
+  const { authActive, user: authUser, logout } = useAuth()
+  // Если вошли по личному аккаунту — показываем его; иначе участника доски.
+  const user: User = authUser
+    ? {
+        id: authUser.id ?? 'me',
+        name: authUser.name,
+        initials: authUser.initials,
+        color: authUser.color,
+        role: authUser.role as User['role'],
+        online: true,
+      }
+    : state.users[state.currentUserId]
   const roleLabel = user.role === 'admin' ? 'Админ пространства' : 'Участник'
 
   const go = (view?: AppView) => {

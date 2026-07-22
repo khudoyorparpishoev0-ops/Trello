@@ -1,93 +1,169 @@
-import { useState, type FormEvent } from 'react'
-import { SquareKanban, Lock, User } from 'lucide-react'
+import { useState, type FormEvent, type ReactNode } from 'react'
+import { SquareKanban, Lock, User, IdCard, KeyRound } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { login as apiLogin } from '@/lib/api'
+import { login as apiLogin, register as apiRegister, type AuthUser } from '@/lib/api'
+import { cn } from '@/lib/utils'
 
-/** Экран входа (Brand Book: Ink-фон, карточка, Inter, зелёная кнопка). */
-export function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
+interface LoginScreenProps {
+  accountsEnabled: boolean
+  onSuccess: (user?: AuthUser) => void
+}
+
+const ERRORS: Record<string, string> = {
+  invalid_credentials: 'Неверный логин или пароль',
+  bad_code: 'Неверный код приглашения',
+  login_taken: 'Такой логин уже занят',
+  invalid_fields: 'Проверьте поля: имя, логин от 3 символов, пароль от 6',
+  network: 'Нет связи с сервером',
+}
+
+/** Экран входа / регистрации (Brand Book). Регистрация — при включённых аккаунтах. */
+export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
+  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [name, setName] = useState('')
   const [loginName, setLoginName] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(false)
+  const [code, setCode] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!loginName.trim() || !password) return
-    setLoading(true)
-    setError(false)
-    const ok = await apiLogin(loginName.trim(), password)
-    setLoading(false)
-    if (ok) onSuccess()
-    else setError(true)
+    setError('')
+    if (mode === 'login') {
+      if (!loginName.trim() || !password) return
+      setLoading(true)
+      const r = await apiLogin(loginName.trim(), password)
+      setLoading(false)
+      if (r.ok) onSuccess(r.user)
+      else setError(ERRORS[r.error ?? ''] ?? 'Не удалось войти')
+    } else {
+      if (!name.trim() || !loginName.trim() || !password || !code.trim()) return
+      setLoading(true)
+      const r = await apiRegister(name.trim(), loginName.trim(), password, code.trim())
+      setLoading(false)
+      if (r.ok) onSuccess(r.user)
+      else setError(ERRORS[r.error ?? ''] ?? 'Не удалось зарегистрироваться')
+    }
+  }
+
+  const switchMode = (m: 'login' | 'register') => {
+    setMode(m)
+    setError('')
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-bg px-4">
+    <div className="flex min-h-screen w-full items-center justify-center bg-bg px-4 py-8">
       <div className="w-full max-w-[380px]">
-        {/* Логотип */}
         <div className="mb-8 flex flex-col items-center gap-3">
           <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-brand">
             <SquareKanban size={26} strokeWidth={2.5} className="text-white" />
           </span>
           <div className="text-center leading-tight">
             <div className="text-h3 font-bold tracking-tight text-fg">IT-HONA</div>
-            <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-faint">
-              TaskBoard
-            </div>
+            <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-faint">TaskBoard</div>
           </div>
         </div>
 
-        <form
-          onSubmit={submit}
-          className="rounded-card border border-line bg-surface p-6 shadow-md sm:p-8"
-        >
-          <h1 className="mb-1 text-h3 font-semibold text-fg">Вход</h1>
-          <p className="mb-6 text-caption text-muted">Доступ только для команды</p>
+        <form onSubmit={submit} className="rounded-card border border-line bg-surface p-6 shadow-md sm:p-8">
+          {accountsEnabled ? (
+            <div className="mb-6 grid grid-cols-2 gap-1 rounded-btn bg-surface-2 p-1">
+              {(['login', 'register'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => switchMode(m)}
+                  className={cn(
+                    'rounded-[10px] py-1.5 text-caption font-medium transition-colors duration-200',
+                    mode === m ? 'bg-bg text-fg shadow-sm' : 'text-muted hover:text-fg',
+                  )}
+                >
+                  {m === 'login' ? 'Вход' : 'Регистрация'}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
+              <h1 className="mb-1 text-h3 font-semibold text-fg">Вход</h1>
+              <p className="mb-6 text-caption text-muted">Доступ только для команды</p>
+            </>
+          )}
 
-          <label className="mb-1.5 block text-caption font-medium text-muted">Логин</label>
-          <div className="relative mb-4">
-            <User
-              size={16}
-              strokeWidth={2}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
-            />
+          {mode === 'register' && (
+            <Field icon={IdCard} label="Имя">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                placeholder="Иван Петров"
+                className={inputCls}
+              />
+            </Field>
+          )}
+
+          <Field icon={User} label="Логин">
             <input
               value={loginName}
               onChange={(e) => setLoginName(e.target.value)}
               autoComplete="username"
-              autoFocus
-              className="h-11 w-full rounded-input border border-line bg-bg pl-9 pr-3 text-small text-fg outline-none transition-colors focus:border-brand placeholder:text-faint"
-              placeholder="admin"
+              autoFocus={mode === 'login'}
+              placeholder={mode === 'register' ? 'ivan' : 'admin'}
+              className={inputCls}
             />
-          </div>
+          </Field>
 
-          <label className="mb-1.5 block text-caption font-medium text-muted">Пароль</label>
-          <div className="relative mb-2">
-            <Lock
-              size={16}
-              strokeWidth={2}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
-            />
+          <Field icon={Lock} label="Пароль">
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              className="h-11 w-full rounded-input border border-line bg-bg pl-9 pr-3 text-small text-fg outline-none transition-colors focus:border-brand placeholder:text-faint"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               placeholder="••••••••"
+              className={inputCls}
             />
-          </div>
+          </Field>
 
-          {error && (
-            <p className="mb-3 text-caption text-error">Неверный логин или пароль</p>
+          {mode === 'register' && (
+            <Field icon={KeyRound} label="Код приглашения">
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Код от администратора"
+                className={inputCls}
+              />
+            </Field>
           )}
 
-          <Button type="submit" className="mt-4 w-full" loading={loading} disabled={loading}>
-            Войти
+          {error && <p className="mb-3 text-caption text-error">{error}</p>}
+
+          <Button type="submit" className="mt-2 w-full" loading={loading} disabled={loading}>
+            {mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-caption text-faint">IT-HONA · Платформа управления задачами</p>
+        <p className="mt-6 text-center text-caption text-faint">
+          IT-HONA · Платформа управления задачами
+        </p>
+      </div>
+    </div>
+  )
+}
+
+const inputCls =
+  'h-11 w-full rounded-input border border-line bg-bg pl-9 pr-3 text-small text-fg outline-none transition-colors focus:border-brand placeholder:text-faint'
+
+function Field({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: ReactNode }) {
+  return (
+    <div className="mb-4">
+      <label className="mb-1.5 block text-caption font-medium text-muted">{label}</label>
+      <div className="relative">
+        <Icon
+          size={16}
+          strokeWidth={2}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+        />
+        {children}
       </div>
     </div>
   )

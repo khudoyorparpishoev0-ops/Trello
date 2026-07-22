@@ -7,47 +7,47 @@ import {
   type ReactNode,
 } from 'react'
 import { SquareKanban } from 'lucide-react'
-import { getAuth, logout as apiLogout } from '@/lib/api'
+import { getAuth, logout as apiLogout, type AuthUser } from '@/lib/api'
 import { LoginScreen } from '@/components/auth/LoginScreen'
 
 type Status = 'checking' | 'authed' | 'login'
 
 interface AuthContextValue {
-  /** Активна ли защита входом (задан пароль на сервере). */
+  /** Активна ли защита входом. */
   authActive: boolean
+  /** Режим личных аккаунтов (регистрация по коду). */
+  accountsEnabled: boolean
+  /** Текущий пользователь (если вошёл по личному аккаунту). */
+  user: AuthUser | null
   logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 /**
- * Ворота аутентификации. Спрашивает сервер, нужен ли вход:
- * - вход не требуется / уже выполнен → показываем приложение;
- * - требуется и не выполнен → показываем экран входа;
- * - бэкенд недоступен → пропускаем (приложение работает локально).
+ * Ворота аутентификации. Спрашивает сервер, нужен ли вход, и показывает
+ * экран входа/регистрации или само приложение. Если бэкенд недоступен —
+ * пропускает (приложение работает локально).
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('checking')
   const [authActive, setAuthActive] = useState(false)
+  const [accountsEnabled, setAccountsEnabled] = useState(false)
+  const [user, setUser] = useState<AuthUser | null>(null)
 
   useEffect(() => {
     let cancelled = false
     void getAuth().then((a) => {
       if (cancelled) return
       if (!a) {
-        // Бэкенд недоступен — не блокируем, работаем как раньше.
-        setAuthActive(false)
-        setStatus('authed')
-      } else if (!a.authRequired) {
-        setAuthActive(false)
-        setStatus('authed')
-      } else if (a.authenticated) {
-        setAuthActive(true)
-        setStatus('authed')
-      } else {
-        setAuthActive(true)
-        setStatus('login')
+        setStatus('authed') // бэкенд недоступен — не блокируем
+        return
       }
+      setAuthActive(a.authRequired)
+      setAccountsEnabled(a.accountsEnabled)
+      setUser(a.user)
+      if (!a.authRequired || a.authenticated) setStatus('authed')
+      else setStatus('login')
     })
     return () => {
       cancelled = true
@@ -56,6 +56,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await apiLogout()
+    setUser(null)
     setStatus('login')
   }, [])
 
@@ -63,7 +64,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (status === 'login') {
     return (
       <LoginScreen
-        onSuccess={() => {
+        accountsEnabled={accountsEnabled}
+        onSuccess={(u) => {
+          setUser(u ?? null)
           setAuthActive(true)
           setStatus('authed')
         }}
@@ -71,7 +74,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     )
   }
 
-  return <AuthContext.Provider value={{ authActive, logout }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ authActive, accountsEnabled, user, logout }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 function Splash() {
@@ -90,6 +97,6 @@ function Splash() {
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext)
-  if (!ctx) return { authActive: false, logout: async () => {} }
+  if (!ctx) return { authActive: false, accountsEnabled: false, user: null, logout: async () => {} }
   return ctx
 }

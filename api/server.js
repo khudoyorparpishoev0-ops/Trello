@@ -1,7 +1,10 @@
 // API IT-HONA TaskBoard.
-// Хранение доски в PostgreSQL + вход по логину (общий логин/пароль из .env).
-// Пока AUTH_PASSWORD пуст — доступ открыт (вход не требуется). Задан — включается
-// защита: /api/board требует валидную сессию (cookie sid).
+// - Хранение доски в PostgreSQL (GET/PUT /api/board)
+// - Аутентификация. Два режима:
+//     Личные аккаунты — если задан INVITE_CODE (регистрация по коду, у каждого свой вход).
+//     Общий вход      — иначе, если задан AUTH_PASSWORD (один логин/пароль на всех).
+//     Открытый доступ  — если ничего не задано.
+// Пароли хешируются (scrypt + соль). Сессии — cookie sid (HttpOnly, 30 дней).
 
 import http from 'node:http'
 import crypto from 'node:crypto'
@@ -9,9 +12,12 @@ import pg from 'pg'
 import Redis from 'ioredis'
 
 const PORT = Number(process.env.PORT ?? 3000)
+const INVITE_CODE = process.env.INVITE_CODE ?? ''
+const ACCOUNTS = INVITE_CODE.length > 0
 const AUTH_LOGIN = process.env.AUTH_LOGIN || 'admin'
 const AUTH_PASSWORD = process.env.AUTH_PASSWORD ?? ''
-const AUTH_REQUIRED = AUTH_PASSWORD.length > 0
+const SHARED = !ACCOUNTS && AUTH_PASSWORD.length > 0
+const AUTH_REQUIRED = ACCOUNTS || SHARED
 const SESSION_DAYS = 30
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -20,7 +26,6 @@ const pool = new pg.Pool({
   max: 5,
   connectionTimeoutMillis: 4000,
 })
-
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://redis:6379', {
   lazyConnect: true,
   maxRetriesPerRequest: 1,
@@ -28,26 +33,29 @@ const redis = new Redis(process.env.REDIS_URL ?? 'redis://redis:6379', {
 
 // ——— Схема ———
 async function ensureSchema() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS board_state (
-      id text PRIMARY KEY,
-      data jsonb NOT NULL,
-      updated_at timestamptz NOT NULL DEFAULT now()
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      token text PRIMARY KEY,
-      created_at timestamptz NOT NULL DEFAULT now()
-    )
-  `)
+  await pool.query(`CREATE TABLE IF NOT EXISTS board_state (
+    id text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`)
+  await pool.query(`CREATE TABLE IF NOT EXISTS users (
+    id text PRIMARY KEY,
+    login text UNIQUE NOT NULL,
+    name text NOT NULL,
+    initials text NOT NULL,
+    color text NOT NULL,
+    role text NOT NULL DEFAULT 'member',
+    pass_salt text NOT NULL,
+    pass_hash text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now())`)
+  await pool.query(`CREATE TABLE IF NOT EXISTS sessions (
+    token text PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now())`)
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_id text`)
 }
 
 async function initWithRetry() {
   for (let i = 0; i < 30; i++) {
     try {
       await ensureSchema()
-      console.log(`[api] схема БД готова · вход ${AUTH_REQUIRED ? 'включён' : 'выключен'}`)
+      const mode = ACCOUNTS ? 'личные аккаунты' : SHARED ? 'общий вход' : 'открытый'
+      console.log(`[api] схема БД готова · режим: ${mode}`)
       return
     } catch (e) {
       console.log(`[api] жду БД… (${e.code ?? e.message})`)
@@ -75,38 +83,70 @@ function readBody(req) {
     req.on('error', reject)
   })
 }
-
 function json(res, code, payload, headers) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', ...headers })
   res.end(JSON.stringify(payload))
 }
-
 function parseCookies(req) {
   const out = {}
-  const h = req.headers.cookie || ''
-  for (const part of h.split(';')) {
+  for (const part of (req.headers.cookie || '').split(';')) {
     const i = part.indexOf('=')
     if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim())
   }
   return out
 }
-
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a))
   const bb = Buffer.from(String(b))
   if (ba.length !== bb.length) return false
   return crypto.timingSafeEqual(ba, bb)
 }
+function hashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const hash = crypto.scryptSync(pw, salt, 64).toString('hex')
+  return { salt, hash }
+}
+function verifyPassword(pw, salt, hash) {
+  const h = crypto.scryptSync(pw, salt, 64).toString('hex')
+  return safeEqual(h, hash)
+}
+function initialsFrom(name) {
+  const parts = name.trim().split(/\s+/)
+  const a = (parts[0] || '')[0] || ''
+  const b = (parts[1] || '')[0] || ''
+  return (a + b).toUpperCase() || 'U'
+}
+const PALETTE = ['#3B82F6', '#EC4899', '#F59E0B', '#8B5CF6', '#06B6D4', '#22C55E', '#EF4444']
+function colorFor(s) {
+  let h = 0
+  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return PALETTE[h % PALETTE.length]
+}
 
-async function hasValidSession(req) {
-  if (!AUTH_REQUIRED) return true
+// ——— Сессии / текущий пользователь ———
+async function newSession(userId) {
+  const token = crypto.randomBytes(24).toString('hex')
+  await pool.query('INSERT INTO sessions (token, user_id) VALUES ($1, $2)', [token, userId])
+  return `sid=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_DAYS * 24 * 3600}`
+}
+async function currentUser(req) {
   const sid = parseCookies(req).sid
-  if (!sid) return false
+  if (!sid) return null
   const { rows } = await pool.query(
-    `SELECT 1 FROM sessions WHERE token = $1 AND created_at > now() - interval '${SESSION_DAYS} days'`,
+    `SELECT user_id FROM sessions WHERE token = $1 AND created_at > now() - interval '${SESSION_DAYS} days'`,
     [sid],
   )
-  return rows.length > 0
+  if (!rows.length) return null
+  const userId = rows[0].user_id
+  if (userId) {
+    const u = await pool.query('SELECT id, login, name, initials, color, role FROM users WHERE id = $1', [userId])
+    return u.rows[0] ?? null
+  }
+  return { shared: true, name: 'Администратор', initials: 'АД', color: '#16A34A', role: 'admin' }
+}
+function publicUser(u) {
+  if (!u) return null
+  return { id: u.id, login: u.login, name: u.name, initials: u.initials, color: u.color, role: u.role, shared: !!u.shared }
 }
 
 // ——— Роуты ———
@@ -114,62 +154,80 @@ async function handle(req, res) {
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`)
   const path = url.pathname
 
-  // Здоровье
   if (path === '/api/health' || path === '/health') {
     const checks = {}
-    try {
-      await pool.query('SELECT 1')
-      checks.postgres = 'up'
-    } catch {
-      checks.postgres = 'down'
-    }
-    try {
-      if (redis.status !== 'ready') await redis.connect()
-      await redis.ping()
-      checks.redis = 'up'
-    } catch {
-      checks.redis = 'down'
-    }
-    const ok = checks.postgres === 'up'
-    return json(res, ok ? 200 : 503, { service: 'ithona-taskboard-api', status: ok ? 'ok' : 'degraded', checks })
+    try { await pool.query('SELECT 1'); checks.postgres = 'up' } catch { checks.postgres = 'down' }
+    try { if (redis.status !== 'ready') await redis.connect(); await redis.ping(); checks.redis = 'up' } catch { checks.redis = 'down' }
+    return json(res, checks.postgres === 'up' ? 200 : 503, { service: 'ithona-taskboard-api', status: checks.postgres === 'up' ? 'ok' : 'degraded', checks })
   }
 
-  // Кто я / нужен ли вход
   if (path === '/api/auth/me' && req.method === 'GET') {
-    const authed = await hasValidSession(req)
-    return json(res, 200, { authRequired: AUTH_REQUIRED, authenticated: AUTH_REQUIRED ? authed : true })
+    const u = await currentUser(req)
+    return json(res, 200, {
+      authRequired: AUTH_REQUIRED,
+      accountsEnabled: ACCOUNTS,
+      authenticated: AUTH_REQUIRED ? !!u : true,
+      user: publicUser(u),
+    })
   }
 
-  // Вход
+  if (path === '/api/auth/register' && req.method === 'POST') {
+    if (!ACCOUNTS) return json(res, 403, { error: 'registration_disabled' })
+    const body = await readBody(req)
+    let b = {}
+    try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
+    const name = String(b.name ?? '').trim()
+    const login = String(b.login ?? '').trim().toLowerCase()
+    const password = String(b.password ?? '')
+    if (!safeEqual(String(b.code ?? ''), INVITE_CODE)) return json(res, 403, { error: 'bad_code' })
+    if (name.length < 2 || login.length < 3 || password.length < 6) return json(res, 400, { error: 'invalid_fields' })
+    const exists = await pool.query('SELECT 1 FROM users WHERE login = $1', [login])
+    if (exists.rows.length) return json(res, 409, { error: 'login_taken' })
+    const count = await pool.query('SELECT count(*)::int AS n FROM users')
+    const role = count.rows[0].n === 0 ? 'admin' : 'member'
+    const { salt, hash } = hashPassword(password)
+    const id = 'u_' + crypto.randomBytes(6).toString('hex')
+    const initials = initialsFrom(name)
+    const color = colorFor(login)
+    await pool.query(
+      `INSERT INTO users (id, login, name, initials, color, role, pass_salt, pass_hash)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [id, login, name, initials, color, role, salt, hash],
+    )
+    const cookie = await newSession(id)
+    return json(res, 200, { ok: true, user: publicUser({ id, login, name, initials, color, role }) }, { 'Set-Cookie': cookie })
+  }
+
   if (path === '/api/auth/login' && req.method === 'POST') {
     if (!AUTH_REQUIRED) return json(res, 200, { ok: true })
     const body = await readBody(req)
-    let creds = {}
-    try {
-      creds = JSON.parse(body)
-    } catch {
-      return json(res, 400, { error: 'bad_request' })
+    let b = {}
+    try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
+    const login = String(b.login ?? '').trim().toLowerCase()
+    const password = String(b.password ?? '')
+    if (ACCOUNTS) {
+      const { rows } = await pool.query('SELECT * FROM users WHERE login = $1', [login])
+      const u = rows[0]
+      if (!u || !verifyPassword(password, u.pass_salt, u.pass_hash)) return json(res, 401, { error: 'invalid_credentials' })
+      const cookie = await newSession(u.id)
+      return json(res, 200, { ok: true, user: publicUser(u) }, { 'Set-Cookie': cookie })
     }
-    const okLogin = safeEqual(creds.login ?? '', AUTH_LOGIN)
-    const okPass = safeEqual(creds.password ?? '', AUTH_PASSWORD)
-    if (!okLogin || !okPass) return json(res, 401, { error: 'invalid_credentials' })
-    const token = crypto.randomBytes(24).toString('hex')
-    await pool.query('INSERT INTO sessions (token) VALUES ($1)', [token])
-    const cookie = `sid=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_DAYS * 24 * 3600}`
+    // Общий вход
+    if (!safeEqual(login, AUTH_LOGIN.toLowerCase()) || !safeEqual(password, AUTH_PASSWORD)) {
+      return json(res, 401, { error: 'invalid_credentials' })
+    }
+    const cookie = await newSession(null)
     return json(res, 200, { ok: true }, { 'Set-Cookie': cookie })
   }
 
-  // Выход
   if (path === '/api/auth/logout' && req.method === 'POST') {
     const sid = parseCookies(req).sid
     if (sid) await pool.query('DELETE FROM sessions WHERE token = $1', [sid]).catch(() => {})
-    const cookie = 'sid=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0'
-    return json(res, 200, { ok: true }, { 'Set-Cookie': cookie })
+    return json(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0' })
   }
 
-  // Доска (защищена, если включён вход)
   if (path === '/api/board') {
-    if (!(await hasValidSession(req))) return json(res, 401, { error: 'unauthorized' })
+    if (AUTH_REQUIRED && !(await currentUser(req))) return json(res, 401, { error: 'unauthorized' })
     if (req.method === 'GET') {
       const { rows } = await pool.query("SELECT data FROM board_state WHERE id = 'default'")
       return json(res, 200, rows[0] ? rows[0].data : null)
@@ -196,7 +254,6 @@ const server = http.createServer((req, res) => {
     json(res, 500, { error: 'internal_error' })
   })
 })
-
 server.listen(PORT, () => console.log(`[api] IT-HONA TaskBoard API слушает :${PORT}`))
 initWithRetry()
 

@@ -8,11 +8,31 @@ import type { BoardState } from '@/types'
 
 const BASE = '/api'
 
+export interface AuthUser {
+  id?: string
+  login?: string
+  name: string
+  initials: string
+  color: string
+  role: string
+  shared?: boolean
+}
+
 export interface AuthInfo {
-  /** Требуется ли вход (задан ли пароль на сервере). */
+  /** Требуется ли вход. */
   authRequired: boolean
+  /** Включён ли режим личных аккаунтов (регистрация по коду). */
+  accountsEnabled: boolean
   /** Выполнен ли вход. */
   authenticated: boolean
+  /** Текущий пользователь (если вошёл). */
+  user: AuthUser | null
+}
+
+export interface AuthResult {
+  ok: boolean
+  error?: string
+  user?: AuthUser
 }
 
 /** Статус аутентификации. null — бэкенд недоступен (тогда работаем как раньше). */
@@ -26,17 +46,38 @@ export async function getAuth(): Promise<AuthInfo | null> {
   }
 }
 
-/** Вход. Возвращает true при успехе. */
-export async function login(loginName: string, password: string): Promise<boolean> {
+/** Вход по логину/паролю. */
+export async function login(loginName: string, password: string): Promise<AuthResult> {
   try {
     const res = await fetch(`${BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ login: loginName, password }),
     })
-    return res.ok
+    const data = await res.json().catch(() => ({}))
+    return { ok: res.ok, error: data?.error, user: data?.user }
   } catch {
-    return false
+    return { ok: false, error: 'network' }
+  }
+}
+
+/** Регистрация по коду-приглашению. */
+export async function register(
+  name: string,
+  loginName: string,
+  password: string,
+  code: string,
+): Promise<AuthResult> {
+  try {
+    const res = await fetch(`${BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, login: loginName, password, code }),
+    })
+    const data = await res.json().catch(() => ({}))
+    return { ok: res.ok, error: data?.error, user: data?.user }
+  } catch {
+    return { ok: false, error: 'network' }
   }
 }
 
