@@ -7,9 +7,11 @@ import {
   Settings,
   ChevronRight,
   Plus,
+  LogOut,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useBoard } from '@/store/boardStore'
+import { useAuth } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
@@ -32,6 +34,7 @@ interface SidebarContentProps {
 /** Внутреннее наполнение боковой панели. Переиспользуется на десктопе и в мобильном drawer. */
 export function SidebarContent({ activeView, onSelectView, onNavigate }: SidebarContentProps) {
   const { state } = useBoard()
+  const { authActive, logout } = useAuth()
   const user = state.users[state.currentUserId]
   const roleLabel = user.role === 'admin' ? 'Админ пространства' : 'Участник'
 
@@ -114,7 +117,19 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
             <div className="truncate text-small font-medium text-fg">{user.name}</div>
             <div className="truncate text-caption text-faint">{roleLabel}</div>
           </div>
-          <Settings size={16} strokeWidth={2} className="shrink-0 text-muted" />
+          {authActive ? (
+            <button
+              type="button"
+              onClick={() => void logout()}
+              title="Выйти"
+              aria-label="Выйти"
+              className="shrink-0 rounded-btn p-1.5 text-muted transition-colors hover:bg-hover hover:text-error"
+            >
+              <LogOut size={16} strokeWidth={2} />
+            </button>
+          ) : (
+            <Settings size={16} strokeWidth={2} className="shrink-0 text-muted" />
+          )}
         </div>
       </div>
     </>

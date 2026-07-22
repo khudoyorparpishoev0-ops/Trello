@@ -4,13 +4,16 @@ import './index.css'
 import App from './App'
 import { ThemeProvider } from '@/store/theme'
 import { BoardProvider } from '@/store/boardStore'
+import { AuthGate } from '@/store/auth'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
-      <BoardProvider>
-        <App />
-      </BoardProvider>
+      <AuthGate>
+        <BoardProvider>
+          <App />
+        </BoardProvider>
+      </AuthGate>
     </ThemeProvider>
   </StrictMode>,
 )

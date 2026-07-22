@@ -38,6 +38,8 @@ services:
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: ${MINIO_ROOT_USER}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      AUTH_LOGIN: ${AUTH_LOGIN:-admin}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-}
     expose:
       - "3000"
     depends_on:
