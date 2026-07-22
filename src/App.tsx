@@ -6,6 +6,7 @@ import { Board, type Filters } from '@/components/board/Board'
 import { CardDetailDrawer } from '@/components/board/CardDetailDrawer'
 import { Dashboard } from '@/components/dashboard/Dashboard'
 import { Team } from '@/components/team/Team'
+import { Calendar } from '@/components/calendar/Calendar'
 
 export default function App() {
   const [view, setView] = useState<AppView>('board')
@@ -28,6 +29,9 @@ export default function App() {
         )}
         {view === 'dashboard' && <Dashboard onMenuClick={() => setNavOpen(true)} />}
         {view === 'team' && <Team onMenuClick={() => setNavOpen(true)} />}
+        {view === 'calendar' && (
+          <Calendar onMenuClick={() => setNavOpen(true)} onOpenCard={setOpenCardId} />
+        )}
       </div>
       <CardDetailDrawer cardId={openCardId} onClose={() => setOpenCardId(null)} />
     </div>
