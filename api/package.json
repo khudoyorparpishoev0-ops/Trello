@@ -1,0 +1,14 @@
+{
+  "name": "ithona-taskboard-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Заготовка API IT-HONA TaskBoard. Пока только health-check и проверка связи с PostgreSQL/Redis. Реальная логика — следующий этап по ТЗ.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1",
+    "pg": "^8.13.1"
+  }
+}

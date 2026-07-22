@@ -97,6 +97,27 @@ src/
 Состояние нормализовано (`lists`, `cards`, `labels`, `users` по id); позиция карточки — индекс в
 `list.cardIds`. См. `src/types.ts`.
 
+## Деплой на сервер
+
+Боевой стек (один сервер, ~20 пользователей) поднимается через Docker Compose:
+**Caddy** (обратный прокси + авто-HTTPS) → фронтенд (nginx со статикой) + заготовка **API** +
+**PostgreSQL** + **Redis** + **MinIO** (вложения). Наружу открыт только Caddy (80/443).
+
+- Пошаговая инструкция подготовки сервера (Ubuntu, безопасность, Docker, HTTPS, бэкапы):
+  **[`deploy/RUNBOOK.md`](deploy/RUNBOOK.md)**
+- Оркестрация: `docker-compose.yml` · прокси: `deploy/Caddyfile` · секреты: `.env.example` → `.env`
+- Ежедневный бэкап БД: `deploy/backup.sh` (cron)
+
+Кратко:
+
+```bash
+cp .env.example .env      # заполнить пароли; домена нет → SITE_ADDRESS=:80
+docker compose up -d --build
+curl http://localhost/api/health   # проверка связи стека
+```
+
+Когда появится домен — в `.env` вписать `SITE_ADDRESS=board.example.com`, и Caddy сам выпустит HTTPS.
+
 ## Дальнейшие шаги (по ТЗ)
 
 1. Бэкенд и API (аккаунты, пространства, доски), общий для веба и мобильных.

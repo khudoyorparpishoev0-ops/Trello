@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.github
+*.tsbuildinfo
+npm-debug.log*
+# секреты не должны попадать в образ
+.env
+.env.*

@@ -1,0 +1,17 @@
+# Обратный прокси IT-HONA TaskBoard.
+# SITE_ADDRESS задаётся в .env:
+#   - пока нет домена:  :80        (HTTP по IP сервера)
+#   - когда есть домен: board.example.com   → Caddy сам получит HTTPS (Let's Encrypt)
+{$SITE_ADDRESS} {
+	encode gzip zstd
+
+	# API → сервис api:3000
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	# Всё остальное → фронтенд (nginx со статикой)
+	handle {
+		reverse_proxy frontend:80
+	}
+}
