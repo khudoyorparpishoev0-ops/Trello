@@ -125,6 +125,53 @@ export async function logout(): Promise<void> {
   }
 }
 
+export interface TelegramStatus {
+  /** Включён ли бот на сервере (задан ли токен). */
+  enabled: boolean
+  /** Привязан ли Telegram у текущего пользователя. */
+  linked: boolean
+  /** Имя бота (@username) — для ссылки. */
+  botUsername: string
+}
+
+/** Статус подключения Telegram у текущего пользователя. */
+export async function telegramStatus(): Promise<TelegramStatus | null> {
+  try {
+    const res = await fetch(`${BASE}/telegram/status`, { headers: { Accept: 'application/json' } })
+    if (!res.ok) return null
+    return (await res.json()) as TelegramStatus
+  } catch {
+    return null
+  }
+}
+
+export interface TelegramLink {
+  code: string
+  botUsername: string
+  deepLink: string
+}
+
+/** Получить код и ссылку для привязки Telegram. */
+export async function telegramLink(): Promise<TelegramLink | null> {
+  try {
+    const res = await fetch(`${BASE}/telegram/link`, { method: 'POST' })
+    if (!res.ok) return null
+    return (await res.json()) as TelegramLink
+  } catch {
+    return null
+  }
+}
+
+/** Отвязать Telegram. */
+export async function telegramUnlink(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE}/telegram/unlink`, { method: 'POST' })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 /**
  * Загрузить состояние с сервера (новый формат AppData или старый BoardState —
  * миграцию делает store). null — если данных нет или бэкенд недоступен.

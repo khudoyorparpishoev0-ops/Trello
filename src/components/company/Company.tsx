@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Menu, Sun, Moon, Plus, X, Building2, Cake, Crown, KeyRound } from 'lucide-react'
+import { Menu, Sun, Moon, Plus, X, Building2, Cake, Crown, KeyRound, Send, Check, Copy } from 'lucide-react'
 import type { User } from '@/types'
 import { useBoard } from '@/store/boardStore'
 import { useTheme } from '@/store/theme'
 import { useAuth } from '@/store/auth'
-import { fetchUsers, resetPassword, type AuthUser } from '@/lib/api'
+import {
+  fetchUsers,
+  resetPassword,
+  telegramStatus,
+  telegramLink,
+  telegramUnlink,
+  type AuthUser,
+  type TelegramStatus,
+} from '@/lib/api'
 import { IconButton } from '@/components/ui/IconButton'
 import { Button } from '@/components/ui/Button'
 import { Avatar, AvatarStack } from '@/components/ui/Avatar'
@@ -278,11 +286,141 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
               </div>
             </Section>
           )}
+
+          {/* Telegram-уведомления */}
+          {authActive && <TelegramCard />}
         </div>
       </div>
 
       {resetFor && <ResetPasswordModal user={resetFor} onClose={() => setResetFor(null)} />}
     </div>
+  )
+}
+
+function TelegramCard() {
+  const [status, setStatus] = useState<TelegramStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [link, setLink] = useState<{ code: string; deepLink: string } | null>(null)
+  const [working, setWorking] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const refresh = async () => {
+    const s = await telegramStatus()
+    setStatus(s)
+    setLoading(false)
+  }
+  useEffect(() => {
+    let cancelled = false
+    void telegramStatus().then((s) => {
+      if (cancelled) return
+      setStatus(s)
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const connect = async () => {
+    setWorking(true)
+    const r = await telegramLink()
+    setWorking(false)
+    if (r) setLink({ code: r.code, deepLink: r.deepLink })
+  }
+  const disconnect = async () => {
+    setWorking(true)
+    await telegramUnlink()
+    setLink(null)
+    await refresh()
+    setWorking(false)
+  }
+  const copyLink = async () => {
+    if (!link?.deepLink) return
+    try {
+      await navigator.clipboard.writeText(link.deepLink)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* буфер обмена недоступен — ссылка всё равно видна на экране */
+    }
+  }
+
+  if (loading) return null
+
+  // Бот не настроен на сервере.
+  if (status && !status.enabled) {
+    return (
+      <Section title="Telegram-уведомления">
+        <p className="text-small text-muted">
+          Бот не настроен. Администратору нужно создать бота в{' '}
+          <span className="font-medium text-fg">@BotFather</span> и указать его токен в переменной{' '}
+          <code className="rounded bg-hover px-1 py-0.5 font-mono text-caption">TELEGRAM_BOT_TOKEN</code> на сервере.
+        </p>
+      </Section>
+    )
+  }
+
+  return (
+    <Section title="Telegram-уведомления">
+      {status?.linked ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-success-soft text-success">
+            <Check size={18} strokeWidth={2.5} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-small font-medium text-fg">Telegram подключён</div>
+            <div className="text-caption text-faint">Присылаю напоминания о днях рождения и дедлайнах.</div>
+          </div>
+          <Button variant="secondary" onClick={disconnect} loading={working} disabled={working}>
+            Отключить
+          </Button>
+        </div>
+      ) : link ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-small text-muted">
+            Откройте ссылку в Telegram и нажмите <span className="font-medium text-fg">Start</span> — бот привяжется к
+            вашему аккаунту.
+          </p>
+          <div className="flex items-center gap-2">
+            <a
+              href={link.deepLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-btn bg-brand px-4 py-2 text-small font-medium text-white hover:bg-[#15913f]"
+            >
+              <Send size={16} strokeWidth={2} /> Открыть в Telegram
+            </a>
+            <button
+              type="button"
+              onClick={copyLink}
+              title="Скопировать ссылку"
+              aria-label="Скопировать ссылку"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-btn bg-surface text-muted hover:bg-hover hover:text-fg"
+            >
+              {copied ? <Check size={16} strokeWidth={2.5} className="text-success" /> : <Copy size={16} strokeWidth={2} />}
+            </button>
+          </div>
+          <div className="rounded-input border border-line bg-bg px-3 py-2 font-mono text-caption text-muted break-all">
+            {link.deepLink}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-hover text-muted">
+            <Send size={18} strokeWidth={2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-small font-medium text-fg">Уведомления в Telegram</div>
+            <div className="text-caption text-faint">
+              Напоминания о днях рождения за 2 дня и о ближайших дедлайнах.
+            </div>
+          </div>
+          <Button onClick={connect} loading={working} disabled={working}>
+            Подключить
+          </Button>
+        </div>
+      )}
+    </Section>
   )
 }
 

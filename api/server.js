@@ -10,6 +10,7 @@ import http from 'node:http'
 import crypto from 'node:crypto'
 import pg from 'pg'
 import Redis from 'ioredis'
+import { initTelegram, getBotUsername, telegramEnabled } from './telegram.js'
 
 const PORT = Number(process.env.PORT ?? 3000)
 const INVITE_CODE = process.env.INVITE_CODE ?? ''
@@ -52,6 +53,11 @@ async function ensureSchema() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birthday text`)
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email text`)
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS position text`)
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tg_chat_id text`)
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tg_code text`)
+  // Журнал отправленных уведомлений — защита от повторов (день рождения/дедлайн).
+  await pool.query(`CREATE TABLE IF NOT EXISTS notif_log (
+    key text PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now())`)
 }
 
 async function initWithRetry() {
@@ -60,6 +66,7 @@ async function initWithRetry() {
       await ensureSchema()
       const mode = ACCOUNTS ? 'личные аккаунты' : SHARED ? 'общий вход' : 'открытый'
       console.log(`[api] схема БД готова · режим: ${mode}`)
+      initTelegram(pool).catch((e) => console.error('[tg] init:', e.message))
       return
     } catch (e) {
       console.log(`[api] жду БД… (${e.code ?? e.message})`)
@@ -289,6 +296,39 @@ async function handle(req, res) {
     const sid = parseCookies(req).sid
     if (sid) await pool.query('DELETE FROM sessions WHERE token = $1', [sid]).catch(() => {})
     return json(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0' })
+  }
+
+  // ——— Telegram ———
+  // Статус подключения текущего пользователя.
+  if (path === '/api/telegram/status' && req.method === 'GET') {
+    const me = await currentUser(req)
+    if (!me || !me.id) return json(res, 200, { enabled: telegramEnabled(), linked: false, botUsername: getBotUsername() })
+    const { rows } = await pool.query('SELECT tg_chat_id FROM users WHERE id = $1', [me.id])
+    return json(res, 200, {
+      enabled: telegramEnabled(),
+      linked: !!rows[0]?.tg_chat_id,
+      botUsername: getBotUsername(),
+    })
+  }
+
+  // Сгенерировать код и ссылку для привязки.
+  if (path === '/api/telegram/link' && req.method === 'POST') {
+    const me = await currentUser(req)
+    if (!me || !me.id) return json(res, 401, { error: 'unauthorized' })
+    if (!telegramEnabled()) return json(res, 400, { error: 'telegram_disabled' })
+    const code = crypto.randomBytes(5).toString('hex')
+    await pool.query('UPDATE users SET tg_code = $1 WHERE id = $2', [code, me.id])
+    const botUsername = getBotUsername()
+    const deepLink = botUsername ? `https://t.me/${botUsername}?start=${code}` : ''
+    return json(res, 200, { code, botUsername, deepLink })
+  }
+
+  // Отвязать Telegram.
+  if (path === '/api/telegram/unlink' && req.method === 'POST') {
+    const me = await currentUser(req)
+    if (!me || !me.id) return json(res, 401, { error: 'unauthorized' })
+    await pool.query('UPDATE users SET tg_chat_id = NULL, tg_code = NULL WHERE id = $1', [me.id])
+    return json(res, 200, { ok: true })
   }
 
   if (path === '/api/board') {
