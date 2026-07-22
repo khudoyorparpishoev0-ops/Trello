@@ -192,7 +192,7 @@ async function handle(req, res) {
     let b = {}
     try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
     const name = String(b.name ?? '').trim()
-    const login = String(b.login ?? '').trim().toLowerCase()
+    const login = String(b.login ?? '').trim() // регистр сохраняем (напр. «Khudoyor»)
     const password = String(b.password ?? '')
     const department = String(b.department ?? '').trim()
     const birthday = String(b.birthday ?? '').trim()
@@ -205,7 +205,7 @@ async function handle(req, res) {
       !/^\d{4}-\d{2}-\d{2}$/.test(birthday)
     )
       return json(res, 400, { error: 'invalid_fields' })
-    const exists = await pool.query('SELECT 1 FROM users WHERE login = $1', [login])
+    const exists = await pool.query('SELECT 1 FROM users WHERE lower(login) = lower($1)', [login])
     if (exists.rows.length) return json(res, 409, { error: 'login_taken' })
     const count = await pool.query('SELECT count(*)::int AS n FROM users')
     const role = count.rows[0].n === 0 ? 'admin' : 'member'
@@ -241,17 +241,18 @@ async function handle(req, res) {
     const body = await readBody(req)
     let b = {}
     try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
-    const login = String(b.login ?? '').trim().toLowerCase()
+    const login = String(b.login ?? '').trim()
     const password = String(b.password ?? '')
     if (ACCOUNTS) {
-      const { rows } = await pool.query('SELECT * FROM users WHERE login = $1', [login])
+      // Вход без учёта регистра логина: «Khudoyor» == «khudoyor».
+      const { rows } = await pool.query('SELECT * FROM users WHERE lower(login) = lower($1)', [login])
       const u = rows[0]
       if (!u || !verifyPassword(password, u.pass_salt, u.pass_hash)) return json(res, 401, { error: 'invalid_credentials' })
       const cookie = await newSession(u.id)
       return json(res, 200, { ok: true, user: publicUser(u) }, { 'Set-Cookie': cookie })
     }
     // Общий вход
-    if (!safeEqual(login, AUTH_LOGIN.toLowerCase()) || !safeEqual(password, AUTH_PASSWORD)) {
+    if (!safeEqual(login.toLowerCase(), AUTH_LOGIN.toLowerCase()) || !safeEqual(password, AUTH_PASSWORD)) {
       return json(res, 401, { error: 'invalid_credentials' })
     }
     const cookie = await newSession(null)

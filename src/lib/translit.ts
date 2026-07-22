@@ -23,8 +23,13 @@ function translit(input: string): string {
     .join('')
 }
 
-/** Логин из ФИО: транслит фамилии (первого слова), только a-z0-9. */
+/**
+ * Логин из Ф.И.О: транслит имени (2-е слово, иначе первое),
+ * с заглавной первой буквой. «Парпишоев Худоёр» → «Khudoyor».
+ */
 export function loginFromName(fio: string): string {
-  const first = fio.trim().split(/\s+/)[0] ?? ''
-  return translit(first).replace(/[^a-z0-9]/g, '')
+  const parts = fio.trim().split(/\s+/)
+  const imya = parts[1] || parts[0] || '' // Имя — второе слово Ф.И.О
+  const t = translit(imya).replace(/[^a-z0-9]/g, '')
+  return t ? t[0].toUpperCase() + t.slice(1) : ''
 }

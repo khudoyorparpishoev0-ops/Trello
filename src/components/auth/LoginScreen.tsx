@@ -154,7 +154,7 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
                 }}
                 autoComplete="username"
                 autoFocus={mode === 'login'}
-                placeholder={mode === 'register' ? 'фамилия латиницей' : 'admin'}
+                placeholder={mode === 'register' ? 'имя латиницей' : 'admin'}
                 className={inputCls}
               />
             </div>
