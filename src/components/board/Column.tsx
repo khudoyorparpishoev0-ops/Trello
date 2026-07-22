@@ -49,7 +49,7 @@ export function Column({
   }
 
   return (
-    <section className="flex h-full w-[300px] shrink-0 flex-col rounded-card bg-surface-2">
+    <section className="flex h-full w-[86vw] max-w-[320px] shrink-0 flex-col rounded-card bg-surface-2 sm:w-[300px]">
       {/* Шапка колонки */}
       <header className="flex items-center gap-2 px-3 pt-3 pb-2">
         <span className="h-2 w-2 shrink-0 rounded-pill" style={{ background: accent }} aria-hidden />

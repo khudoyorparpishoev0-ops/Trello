@@ -132,7 +132,6 @@ export function KanbanCard({ card, listId, ...rest }: KanbanCardProps) {
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className="touch-none"
       {...attributes}
       {...listeners}
     >

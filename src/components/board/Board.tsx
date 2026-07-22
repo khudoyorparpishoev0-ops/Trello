@@ -3,7 +3,8 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCorners,
   useSensor,
   useSensors,
@@ -36,8 +37,11 @@ export function Board({ filters, onOpenCard }: BoardProps) {
   const { board, lists, cards, users, labels, currentUserId } = state
   const [activeId, setActiveId] = useState<string | null>(null)
 
+  // Мышь — тянем сразу (порог 6px, чтобы клик открывал карточку).
+  // Тач — тянем после долгого нажатия (250ms), чтобы обычный свайп прокручивал колонку.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -119,7 +123,7 @@ export function Board({ filters, onOpenCard }: BoardProps) {
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      <div className="flex h-full items-start gap-4 overflow-x-auto px-6 py-5">
+      <div className="flex h-full items-start gap-3 overflow-x-auto px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
         {board.listIds.map((listId) => {
           const list = lists[listId]
           if (!list) return null
@@ -142,7 +146,7 @@ export function Board({ filters, onOpenCard }: BoardProps) {
         })}
 
         {/* Добавить список */}
-        <div className="w-[300px] shrink-0">
+        <div className="w-[86vw] max-w-[320px] shrink-0 sm:w-[300px]">
           <InlineComposer
             triggerLabel="Добавить список"
             placeholder="Название списка…"

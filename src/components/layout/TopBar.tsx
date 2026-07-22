@@ -7,6 +7,7 @@ import {
   UserPlus,
   SlidersHorizontal,
   Check,
+  Menu,
 } from 'lucide-react'
 import type { Filters } from '@/components/board/Board'
 import { useBoard } from '@/store/boardStore'
@@ -21,9 +22,10 @@ const VIEWS = ['Доска', 'Таймлайн', 'Календарь', 'Табл
 interface TopBarProps {
   filters: Filters
   onFiltersChange: (f: Filters) => void
+  onMenuClick: () => void
 }
 
-export function TopBar({ filters, onFiltersChange }: TopBarProps) {
+export function TopBar({ filters, onFiltersChange, onMenuClick }: TopBarProps) {
   const { state } = useBoard()
   const { theme, toggle } = useTheme()
   const members = state.board.memberIds.map((id) => state.users[id]).filter(Boolean)
@@ -31,16 +33,25 @@ export function TopBar({ filters, onFiltersChange }: TopBarProps) {
   return (
     <header className="shrink-0 border-b border-line bg-bg">
       {/* Верхний ряд */}
-      <div className="flex items-center gap-3 px-6 py-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex items-center gap-2 px-4 py-3 sm:gap-3 sm:px-6">
+        {/* Бургер-меню (только на узких экранах) */}
+        <IconButton
+          icon={Menu}
+          label="Меню"
+          size="sm"
+          onClick={onMenuClick}
+          className="-ml-1 shrink-0 lg:hidden"
+        />
+
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <h1 className="truncate text-h3 font-semibold text-fg">{state.board.name}</h1>
-          <span className="inline-flex items-center gap-1 rounded-pill bg-hover px-2 py-0.5 text-caption font-medium text-muted">
+          <span className="hidden items-center gap-1 rounded-pill bg-hover px-2 py-0.5 text-caption font-medium text-muted sm:inline-flex">
             <Lock size={12} strokeWidth={2} />
             Приватная
           </span>
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           {/* Поиск */}
           <div className="relative hidden sm:block">
             <Search
@@ -65,7 +76,7 @@ export function TopBar({ filters, onFiltersChange }: TopBarProps) {
             ))}
           </div>
 
-          <IconButton icon={Bell} label="Уведомления" size="sm" />
+          <IconButton icon={Bell} label="Уведомления" size="sm" className="hidden sm:inline-flex" />
           <IconButton
             icon={theme === 'dark' ? Sun : Moon}
             label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
@@ -73,14 +84,14 @@ export function TopBar({ filters, onFiltersChange }: TopBarProps) {
             onClick={toggle}
           />
           <Button size="sm" icon={UserPlus}>
-            Пригласить
+            <span className="hidden sm:inline">Пригласить</span>
           </Button>
         </div>
       </div>
 
-      {/* Нижний ряд: виды + фильтры */}
-      <div className="flex items-center gap-3 px-6 pb-3">
-        <div className="flex items-center gap-1 rounded-btn bg-surface-2 p-1">
+      {/* Нижний ряд: виды + фильтры (прокручивается по горизонтали на узких экранах) */}
+      <div className="flex items-center gap-3 overflow-x-auto px-4 pb-3 no-scrollbar sm:px-6">
+        <div className="flex shrink-0 items-center gap-1 rounded-btn bg-surface-2 p-1">
           {VIEWS.map((v) => {
             const active = v === 'Доска'
             return (
@@ -100,7 +111,7 @@ export function TopBar({ filters, onFiltersChange }: TopBarProps) {
           })}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <span className="hidden items-center gap-1 text-caption text-faint sm:flex">
             <SlidersHorizontal size={14} strokeWidth={2} />
             Быстрые фильтры:

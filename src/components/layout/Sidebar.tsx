@@ -21,13 +21,14 @@ const NAV: { icon: LucideIcon; label: string; active?: boolean }[] = [
   { icon: BarChart3, label: 'Отчёты' },
 ]
 
-export function Sidebar() {
+/** Внутреннее наполнение боковой панели. Переиспользуется на десктопе и в мобильном drawer. */
+export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { state } = useBoard()
   const user = state.users[state.currentUserId]
   const roleLabel = user.role === 'admin' ? 'Админ пространства' : 'Участник'
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-surface-2 lg:flex">
+    <>
       {/* Логотип */}
       <div className="flex items-center gap-2.5 px-5 py-4">
         <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand">
@@ -47,6 +48,7 @@ export function Sidebar() {
           <button
             key={item.label}
             type="button"
+            onClick={onNavigate}
             className={cn(
               'flex w-full items-center gap-3 rounded-btn px-3 py-2 text-small font-medium transition-colors duration-200 ease-smooth',
               item.active ? 'bg-hover text-fg' : 'text-muted hover:bg-hover hover:text-fg',
@@ -74,14 +76,13 @@ export function Sidebar() {
             <button
               key={b.id}
               type="button"
+              onClick={onNavigate}
               className={cn(
                 'flex w-full items-center gap-2 rounded-btn px-3 py-2 text-small transition-colors duration-200 ease-smooth',
                 active ? 'bg-brand-soft font-medium text-brand' : 'text-muted hover:bg-hover hover:text-fg',
               )}
             >
-              <span
-                className={cn('h-2 w-2 rounded-[4px]', active ? 'bg-brand' : 'bg-line-strong')}
-              />
+              <span className={cn('h-2 w-2 rounded-[4px]', active ? 'bg-brand' : 'bg-line-strong')} />
               <span className="truncate">{b.name}</span>
               {active && <ChevronRight size={14} strokeWidth={2} className="ml-auto" />}
             </button>
@@ -100,6 +101,15 @@ export function Sidebar() {
           <Settings size={16} strokeWidth={2} className="shrink-0 text-muted" />
         </div>
       </div>
+    </>
+  )
+}
+
+/** Боковая панель для десктопа (скрыта на узких экранах — там мобильное меню). */
+export function Sidebar() {
+  return (
+    <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-surface-2 lg:flex">
+      <SidebarContent />
     </aside>
   )
 }
