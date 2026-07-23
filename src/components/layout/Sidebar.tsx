@@ -18,7 +18,7 @@ import { useAuth } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
-export type AppView = 'board' | 'dashboard' | 'company' | 'calendar' | 'reports'
+export type AppView = 'board' | 'dashboard' | 'company' | 'calendar' | 'reports' | 'profile'
 
 const NAV: { icon: LucideIcon; label: string; view?: AppView }[] = [
   { icon: SquareKanban, label: 'Доски', view: 'board' },
@@ -57,6 +57,7 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
         name: authUser.name,
         initials: authUser.initials,
         color: authUser.color,
+        avatar: authUser.avatar,
         role: authUser.role as User['role'],
         online: true,
       }
@@ -174,12 +175,24 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
 
       {/* Пользователь */}
       <div className="mt-auto border-t border-line p-3">
-        <div className="flex items-center gap-2.5 rounded-btn px-2 py-2 hover:bg-hover">
-          <Avatar user={user} size="md" showStatus />
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-small font-medium text-fg">{user.name}</div>
-            <div className="truncate text-caption text-faint">{roleLabel}</div>
-          </div>
+        <div
+          className={cn(
+            'flex items-center gap-2.5 rounded-btn px-2 py-2 transition-colors',
+            activeView === 'profile' ? 'bg-hover' : 'hover:bg-hover',
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => go('profile')}
+            title="Мой профиль"
+            className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+          >
+            <Avatar user={user} size="md" showStatus />
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-small font-medium text-fg">{user.name}</span>
+              <span className="block truncate text-caption text-faint">{roleLabel}</span>
+            </span>
+          </button>
           {authActive ? (
             <button
               type="button"

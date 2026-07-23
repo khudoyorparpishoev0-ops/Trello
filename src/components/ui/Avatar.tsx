@@ -14,20 +14,28 @@ const SIZES = {
   md: 'h-8 w-8 text-caption',
 }
 
-/** Avatar с инициалами и индикатором онлайн-статуса (Brand Book §6). */
+/** Avatar с фото или инициалами и индикатором онлайн-статуса (Brand Book §6). */
 export function Avatar({ user, size = 'sm', showStatus, className }: AvatarProps) {
   return (
     <span className={cn('relative inline-flex shrink-0', className)} title={user.name}>
-      <span
-        className={cn(
-          'inline-flex items-center justify-center rounded-pill font-semibold text-white',
-          'ring-2 ring-surface-2',
-          SIZES[size],
-        )}
-        style={{ background: user.color }}
-      >
-        {user.initials}
-      </span>
+      {user.avatar ? (
+        <img
+          src={user.avatar}
+          alt={user.name}
+          className={cn('rounded-pill object-cover ring-2 ring-surface-2', SIZES[size])}
+        />
+      ) : (
+        <span
+          className={cn(
+            'inline-flex items-center justify-center rounded-pill font-semibold text-white',
+            'ring-2 ring-surface-2',
+            SIZES[size],
+          )}
+          style={{ background: user.color }}
+        >
+          {user.initials}
+        </span>
+      )}
       {showStatus && user.online && (
         <span
           className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-pill bg-success ring-2 ring-surface-2"

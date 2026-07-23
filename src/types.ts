@@ -18,6 +18,8 @@ export interface User {
   initials: string
   /** HEX-цвет фона аватара. */
   color: string
+  /** Фото профиля (data-URL). Если задано — показывается вместо инициалов. */
+  avatar?: string
   role?: WorkspaceRole
   online?: boolean
 }

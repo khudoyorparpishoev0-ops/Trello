@@ -19,6 +19,8 @@ export interface AuthUser {
   birthday?: string
   email?: string
   position?: string
+  /** Фото профиля (data-URL) либо пусто. */
+  avatar?: string
   shared?: boolean
 }
 
@@ -99,6 +101,57 @@ export async function resetPassword(userId: string, password: string): Promise<A
     })
     const data = await res.json().catch(() => ({}))
     return { ok: res.ok, error: data?.error }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+
+/** Сменить свой пароль (нужен текущий). */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<AuthResult> {
+  try {
+    const res = await fetch(`${BASE}/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+    const data = await res.json().catch(() => ({}))
+    return { ok: res.ok, error: data?.error }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+
+/** Обновить свой профиль. Возвращает обновлённого пользователя. */
+export async function updateProfile(input: {
+  name: string
+  email: string
+  department: string
+  position: string
+  birthday: string
+}): Promise<AuthResult> {
+  try {
+    const res = await fetch(`${BASE}/auth/profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    const data = await res.json().catch(() => ({}))
+    return { ok: res.ok, error: data?.error, user: data?.user }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+
+/** Загрузить (data-URL) или удалить (пустая строка) фото профиля. */
+export async function updateAvatar(avatar: string): Promise<{ ok: boolean; error?: string; avatar?: string }> {
+  try {
+    const res = await fetch(`${BASE}/auth/avatar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ avatar }),
+    })
+    const data = await res.json().catch(() => ({}))
+    return { ok: res.ok, error: data?.error, avatar: data?.avatar }
   } catch {
     return { ok: false, error: 'network' }
   }

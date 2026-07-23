@@ -55,6 +55,7 @@ async function ensureSchema() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS position text`)
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tg_chat_id text`)
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tg_code text`)
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar text`)
   // Журнал отправленных уведомлений — защита от повторов (день рождения/дедлайн).
   await pool.query(`CREATE TABLE IF NOT EXISTS notif_log (
     key text PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now())`)
@@ -151,7 +152,7 @@ async function currentUser(req) {
   const userId = rows[0].user_id
   if (userId) {
     const u = await pool.query(
-      'SELECT id, login, name, initials, color, role, department, birthday, email, position FROM users WHERE id = $1',
+      'SELECT id, login, name, initials, color, role, department, birthday, email, position, avatar FROM users WHERE id = $1',
       [userId],
     )
     return u.rows[0] ?? null
@@ -171,6 +172,7 @@ function publicUser(u) {
     birthday: u.birthday ?? '',
     email: u.email ?? '',
     position: u.position ?? '',
+    avatar: u.avatar ?? '',
     shared: !!u.shared,
   }
 }
@@ -246,7 +248,7 @@ async function handle(req, res) {
   if (path === '/api/users' && req.method === 'GET') {
     if (AUTH_REQUIRED && !(await currentUser(req))) return json(res, 401, { error: 'unauthorized' })
     const { rows } = await pool.query(
-      'SELECT id, login, name, initials, color, role, department, birthday, email, position FROM users ORDER BY name',
+      'SELECT id, login, name, initials, color, role, department, birthday, email, position, avatar FROM users ORDER BY name',
     )
     return json(res, 200, { users: rows.map(publicUser) })
   }
@@ -267,6 +269,76 @@ async function handle(req, res) {
     await pool.query('UPDATE users SET pass_salt = $1, pass_hash = $2 WHERE id = $3', [salt, hash, userId])
     await pool.query('DELETE FROM sessions WHERE user_id = $1', [userId]).catch(() => {})
     return json(res, 200, { ok: true })
+  }
+
+  // Сменить свой пароль (нужен текущий пароль)
+  if (path === '/api/auth/change-password' && req.method === 'POST') {
+    const me = await currentUser(req)
+    if (!me || !me.id) return json(res, 401, { error: 'unauthorized' })
+    const body = await readBody(req)
+    let b = {}
+    try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
+    const currentPassword = String(b.currentPassword ?? '')
+    const newPassword = String(b.newPassword ?? '')
+    if (newPassword.length < 6) return json(res, 400, { error: 'invalid_fields' })
+    const { rows } = await pool.query('SELECT pass_salt, pass_hash FROM users WHERE id = $1', [me.id])
+    const u = rows[0]
+    if (!u || !verifyPassword(currentPassword, u.pass_salt, u.pass_hash))
+      return json(res, 403, { error: 'wrong_password' })
+    const { salt, hash } = hashPassword(newPassword)
+    await pool.query('UPDATE users SET pass_salt = $1, pass_hash = $2 WHERE id = $3', [salt, hash, me.id])
+    return json(res, 200, { ok: true })
+  }
+
+  // Обновить свой профиль (имя, e-mail, должность, отдел, дата рождения)
+  if (path === '/api/auth/profile' && req.method === 'POST') {
+    const me = await currentUser(req)
+    if (!me || !me.id) return json(res, 401, { error: 'unauthorized' })
+    const body = await readBody(req)
+    let b = {}
+    try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
+    const name = String(b.name ?? '').trim()
+    const email = String(b.email ?? '').trim()
+    const department = String(b.department ?? '').trim()
+    const position = String(b.position ?? '').trim()
+    const birthday = String(b.birthday ?? '').trim()
+    if (
+      name.length < 2 ||
+      position.length < 2 ||
+      department.length < 1 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(birthday)
+    )
+      return json(res, 400, { error: 'invalid_fields' })
+    const initials = initialsFrom(name)
+    await pool.query(
+      'UPDATE users SET name = $1, email = $2, department = $3, position = $4, birthday = $5, initials = $6 WHERE id = $7',
+      [name, email, department, position, birthday, initials, me.id],
+    )
+    const u = await pool.query(
+      'SELECT id, login, name, initials, color, role, department, birthday, email, position, avatar FROM users WHERE id = $1',
+      [me.id],
+    )
+    return json(res, 200, { ok: true, user: publicUser(u.rows[0]) })
+  }
+
+  // Загрузить/удалить фото профиля (data-URL картинки, до ~700 КБ)
+  if (path === '/api/auth/avatar' && req.method === 'POST') {
+    const me = await currentUser(req)
+    if (!me || !me.id) return json(res, 401, { error: 'unauthorized' })
+    const body = await readBody(req)
+    let b = {}
+    try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
+    const raw = b.avatar
+    let avatar = null
+    if (raw != null && String(raw).length > 0) {
+      const s = String(raw)
+      if (!/^data:image\/(png|jpe?g|webp|gif);base64,/.test(s)) return json(res, 400, { error: 'invalid_image' })
+      if (s.length > 700_000) return json(res, 413, { error: 'image_too_large' })
+      avatar = s
+    }
+    await pool.query('UPDATE users SET avatar = $1 WHERE id = $2', [avatar, me.id])
+    return json(res, 200, { ok: true, avatar: avatar ?? '' })
   }
 
   if (path === '/api/auth/login' && req.method === 'POST') {

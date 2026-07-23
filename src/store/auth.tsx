@@ -19,6 +19,8 @@ interface AuthContextValue {
   accountsEnabled: boolean
   /** Текущий пользователь (если вошёл по личному аккаунту). */
   user: AuthUser | null
+  /** Локально обновить поля текущего пользователя (после правки профиля). */
+  updateUser: (patch: Partial<AuthUser>) => void
   logout: () => Promise<void>
 }
 
@@ -54,6 +56,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const updateUser = useCallback((patch: Partial<AuthUser>) => {
+    setUser((u) => (u ? { ...u, ...patch } : u))
+  }, [])
+
   const logout = useCallback(async () => {
     await apiLogout()
     setUser(null)
@@ -75,7 +81,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ authActive, accountsEnabled, user, logout }}>
+    <AuthContext.Provider value={{ authActive, accountsEnabled, user, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   )
@@ -97,6 +103,7 @@ function Splash() {
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext)
-  if (!ctx) return { authActive: false, accountsEnabled: false, user: null, logout: async () => {} }
+  if (!ctx)
+    return { authActive: false, accountsEnabled: false, user: null, updateUser: () => {}, logout: async () => {} }
   return ctx
 }
