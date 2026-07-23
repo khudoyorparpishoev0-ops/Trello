@@ -1,7 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Menu, Sun, Moon, Plus, X, Building2, Cake, Crown, KeyRound, Send, Check, Copy } from 'lucide-react'
+import {
+  Menu,
+  Sun,
+  Moon,
+  Plus,
+  X,
+  Building2,
+  Cake,
+  Crown,
+  KeyRound,
+  Send,
+  Check,
+  Copy,
+  MoreVertical,
+  Pencil,
+  Users,
+  Archive,
+  ArchiveRestore,
+  Link2,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react'
 import type { User } from '@/types'
-import { useBoard } from '@/store/boardStore'
+import { useBoard, type BoardSummary } from '@/store/boardStore'
 import { useTheme } from '@/store/theme'
 import { useAuth } from '@/store/auth'
 import {
@@ -13,6 +34,7 @@ import {
   type AuthUser,
   type TelegramStatus,
 } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { IconButton } from '@/components/ui/IconButton'
 import { Button } from '@/components/ui/Button'
 import { Avatar, AvatarStack } from '@/components/ui/Avatar'
@@ -55,7 +77,7 @@ interface CompanyProps {
 }
 
 export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
-  const { state, boards, departments, actions } = useBoard()
+  const { state, boards, archivedBoards, departments, actions } = useBoard()
   const { authActive, user: authUser } = useAuth()
   const { theme, toggle } = useTheme()
   const isAdmin = authUser?.role === 'admin'
@@ -64,6 +86,10 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
   const [newBoard, setNewBoard] = useState('')
   const [creatingBoard, setCreatingBoard] = useState(false)
   const [resetFor, setResetFor] = useState<AuthUser | null>(null)
+  const [renameFor, setRenameFor] = useState<BoardSummary | null>(null)
+  const [membersFor, setMembersFor] = useState<BoardSummary | null>(null)
+  const [deleteFor, setDeleteFor] = useState<BoardSummary | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -94,6 +120,17 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
     setCreatingBoard(false)
     onNavigateBoard()
   }
+  const memberUsersOf = (b: BoardSummary): User[] => b.memberIds.map((id) => state.users[id]).filter(Boolean)
+  const copyLink = async (id: string) => {
+    const link = `${window.location.origin}${window.location.pathname}?board=${id}`
+    try {
+      await navigator.clipboard.writeText(link)
+    } catch {
+      /* буфер обмена недоступен — не критично */
+    }
+    setCopiedId(id)
+    setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500)
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -120,15 +157,20 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
           <Section title={`Проекты · ${boards.length}`}>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {boards.map((b) => (
-                <button
+                <ProjectCard
                   key={b.id}
-                  type="button"
-                  onClick={() => openBoard(b.id)}
-                  className="flex flex-col justify-between gap-4 rounded-card border border-line bg-bg p-4 text-left transition-colors hover:border-line-strong"
-                >
-                  <span className="truncate text-small font-medium text-fg">{b.name}</span>
-                  <AvatarStack users={b.memberIds.map((id) => state.users[id]).filter(Boolean)} size="sm" max={4} />
-                </button>
+                  board={b}
+                  memberUsers={memberUsersOf(b)}
+                  copied={copiedId === b.id}
+                  canDelete={boards.length > 1}
+                  onOpen={() => openBoard(b.id)}
+                  onRename={() => setRenameFor(b)}
+                  onMembers={() => setMembersFor(b)}
+                  onDuplicate={() => actions.duplicateBoard(b.id)}
+                  onArchive={() => actions.archiveBoard(b.id)}
+                  onCopyLink={() => copyLink(b.id)}
+                  onDelete={() => setDeleteFor(b)}
+                />
               ))}
 
               {creatingBoard ? (
@@ -163,6 +205,29 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
               )}
             </div>
           </Section>
+
+          {/* Архив проектов */}
+          {archivedBoards.length > 0 && (
+            <Section title={`Архив · ${archivedBoards.length}`}>
+              <div className="flex flex-col divide-y divide-line">
+                {archivedBoards.map((b) => (
+                  <div key={b.id} className="flex items-center gap-3 py-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-btn bg-hover text-faint">
+                      <Archive size={16} strokeWidth={2} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-small text-muted">{b.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => actions.unarchiveBoard(b.id)}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-btn bg-surface px-3 py-1.5 text-caption font-medium text-fg hover:bg-hover"
+                    >
+                      <ArchiveRestore size={14} strokeWidth={2} /> Вернуть
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
 
           {/* Отделы */}
           <Section title={`Отделы · ${departments.length}`}>
@@ -293,6 +358,310 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
       </div>
 
       {resetFor && <ResetPasswordModal user={resetFor} onClose={() => setResetFor(null)} />}
+      {renameFor && (
+        <RenameBoardModal
+          board={renameFor}
+          onClose={() => setRenameFor(null)}
+          onSave={(name) => {
+            actions.renameBoard(renameFor.id, name)
+            setRenameFor(null)
+          }}
+        />
+      )}
+      {membersFor && (
+        <BoardMembersModal
+          board={membersFor}
+          employees={users}
+          current={memberUsersOf(membersFor)}
+          onClose={() => setMembersFor(null)}
+          onSave={(members) => {
+            actions.setBoardMembers(membersFor.id, members)
+            setMembersFor(null)
+          }}
+        />
+      )}
+      {deleteFor && (
+        <DeleteBoardModal
+          board={deleteFor}
+          onClose={() => setDeleteFor(null)}
+          onConfirm={() => {
+            actions.deleteBoard(deleteFor.id)
+            setDeleteFor(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ProjectCard({
+  board,
+  memberUsers,
+  copied,
+  canDelete,
+  onOpen,
+  onRename,
+  onMembers,
+  onDuplicate,
+  onArchive,
+  onCopyLink,
+  onDelete,
+}: {
+  board: BoardSummary
+  memberUsers: User[]
+  copied: boolean
+  canDelete: boolean
+  onOpen: () => void
+  onRename: () => void
+  onMembers: () => void
+  onDuplicate: () => void
+  onArchive: () => void
+  onCopyLink: () => void
+  onDelete: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const close = () => setOpen(false)
+
+  return (
+    <div className="relative flex flex-col justify-between gap-4 rounded-card border border-line bg-bg p-4 transition-colors hover:border-line-strong">
+      <div className="flex items-start justify-between gap-2">
+        <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
+          <span className="block truncate text-small font-medium text-fg">{board.name}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label="Меню проекта"
+          aria-haspopup="menu"
+          className="-mr-1.5 -mt-1.5 shrink-0 rounded-btn p-1.5 text-faint transition-colors hover:bg-hover hover:text-fg"
+        >
+          <MoreVertical size={18} strokeWidth={2} />
+        </button>
+      </div>
+      <button type="button" onClick={onOpen} className="flex text-left">
+        <AvatarStack users={memberUsers} size="sm" max={4} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={close} aria-hidden />
+          <div
+            role="menu"
+            className="absolute right-3 top-12 z-50 w-56 overflow-hidden rounded-modal border border-line bg-elevated py-1 shadow-md animate-scale-in"
+          >
+            <MenuItem icon={Pencil} label="Переименовать" onClick={() => { close(); onRename() }} />
+            <MenuItem icon={Users} label="Участники и роли" onClick={() => { close(); onMembers() }} />
+            <MenuItem icon={Copy} label="Дублировать" onClick={() => { close(); onDuplicate() }} />
+            <MenuItem icon={Archive} label="Поместить в архив" onClick={() => { close(); onArchive() }} />
+            <MenuItem
+              icon={copied ? Check : Link2}
+              label={copied ? 'Скопировано ✓' : 'Скопировать ссылку'}
+              onClick={onCopyLink}
+            />
+            {canDelete && (
+              <>
+                <div className="my-1 border-t border-line" />
+                <MenuItem icon={Trash2} label="Удалить" danger onClick={() => { close(); onDelete() }} />
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function MenuItem({
+  icon: Icon,
+  label,
+  onClick,
+  danger,
+}: {
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+  danger?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center gap-2.5 px-3 py-2 text-left text-small transition-colors',
+        danger ? 'text-error hover:bg-error-soft' : 'text-fg hover:bg-hover',
+      )}
+    >
+      <Icon size={16} strokeWidth={2} className="shrink-0" />
+      {label}
+    </button>
+  )
+}
+
+function RenameBoardModal({
+  board,
+  onClose,
+  onSave,
+}: {
+  board: BoardSummary
+  onClose: () => void
+  onSave: (name: string) => void
+}) {
+  const [name, setName] = useState(board.name)
+  const save = () => {
+    if (name.trim()) onSave(name.trim())
+  }
+  return (
+    <ModalShell title="Переименовать проект" onClose={onClose}>
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') save()
+          if (e.key === 'Escape') onClose()
+        }}
+        className="w-full rounded-input border border-line bg-bg px-3 py-2 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
+      />
+      <div className="mt-4 flex gap-2">
+        <Button onClick={save} disabled={!name.trim()} className="flex-1">
+          Сохранить
+        </Button>
+        <Button variant="secondary" onClick={onClose}>
+          Отмена
+        </Button>
+      </div>
+    </ModalShell>
+  )
+}
+
+function DeleteBoardModal({
+  board,
+  onClose,
+  onConfirm,
+}: {
+  board: BoardSummary
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <ModalShell title="Удалить проект?" onClose={onClose}>
+      <p className="text-small text-muted">
+        Проект <span className="font-medium text-fg">«{board.name}»</span> и все его задачи будут удалены безвозвратно.
+        Если хотите сохранить — используйте «Поместить в архив».
+      </p>
+      <div className="mt-4 flex gap-2">
+        <Button variant="danger" onClick={onConfirm} className="flex-1">
+          Удалить
+        </Button>
+        <Button variant="secondary" onClick={onClose}>
+          Отмена
+        </Button>
+      </div>
+    </ModalShell>
+  )
+}
+
+function BoardMembersModal({
+  board,
+  employees,
+  current,
+  onClose,
+  onSave,
+}: {
+  board: BoardSummary
+  employees: AuthUser[]
+  current: User[]
+  onClose: () => void
+  onSave: (members: User[]) => void
+}) {
+  // Кандидаты: зарегистрированные сотрудники + те, кто уже в проекте (демо-участники).
+  const candidates = useMemo<User[]>(() => {
+    const byId = new Map<string, User>()
+    for (const u of current) byId.set(u.id, u)
+    for (const e of employees) {
+      const u = toUser(e)
+      byId.set(u.id, u)
+    }
+    return [...byId.values()]
+  }, [employees, current])
+
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(current.map((u) => u.id)))
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  return (
+    <ModalShell title="Участники проекта" onClose={onClose}>
+      <p className="-mt-1 mb-3 text-caption text-muted">«{board.name}»</p>
+      {candidates.length === 0 ? (
+        <div className="rounded-btn border border-dashed border-line py-6 text-center text-caption text-faint">
+          Пока некого добавить — сотрудники появятся после регистрации.
+        </div>
+      ) : (
+        <div className="-mx-1 max-h-[46vh] overflow-y-auto">
+          {candidates.map((u) => {
+            const on = selected.has(u.id)
+            return (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => toggle(u.id)}
+                className="flex w-full items-center gap-3 rounded-btn px-2 py-2 text-left hover:bg-hover"
+              >
+                <Avatar user={u} size="sm" />
+                <span className="min-w-0 flex-1 truncate text-small text-fg">{u.name}</span>
+                <span
+                  className={cn(
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border',
+                    on ? 'border-brand bg-brand text-white' : 'border-line-strong text-transparent',
+                  )}
+                >
+                  <Check size={13} strokeWidth={3} />
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+      <div className="mt-4 flex gap-2">
+        <Button
+          onClick={() => onSave(candidates.filter((u) => selected.has(u.id)))}
+          className="flex-1"
+        >
+          Сохранить ({selected.size})
+        </Button>
+        <Button variant="secondary" onClick={onClose}>
+          Отмена
+        </Button>
+      </div>
+    </ModalShell>
+  )
+}
+
+function ModalShell({
+  title,
+  onClose,
+  children,
+}: {
+  title: string
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} aria-hidden />
+      <div className="relative w-full max-w-[400px] rounded-modal border border-line bg-elevated p-5 shadow-md animate-scale-in">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-h3 font-semibold text-fg">{title}</h3>
+          <IconButton icon={X} label="Закрыть" size="sm" onClick={onClose} />
+        </div>
+        {children}
+      </div>
     </div>
   )
 }

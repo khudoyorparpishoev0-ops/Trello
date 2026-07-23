@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { AppData, Board, BoardState, Card, Checklist, List, Priority } from '@/types'
+import type { AppData, Board, BoardState, Card, Checklist, List, Priority, User } from '@/types'
 import { createSeedState, emptyBoard, DEFAULT_DEPARTMENTS } from '@/data/seed'
 import { loadBoard, saveBoard } from '@/lib/api'
 import { uid } from '@/lib/utils'
@@ -38,6 +38,10 @@ type Action =
   | { type: 'ADD_BOARD'; name: string }
   | { type: 'RENAME_BOARD'; boardId: string; name: string }
   | { type: 'DELETE_BOARD'; boardId: string }
+  | { type: 'DUPLICATE_BOARD'; boardId: string }
+  | { type: 'ARCHIVE_BOARD'; boardId: string }
+  | { type: 'UNARCHIVE_BOARD'; boardId: string }
+  | { type: 'SET_BOARD_MEMBERS'; boardId: string; members: User[] }
   | { type: 'ADD_DEPARTMENT'; name: string }
   | { type: 'REMOVE_DEPARTMENT'; name: string }
 
@@ -240,6 +244,80 @@ function appReducer(state: AppData, action: Action): AppData {
       return { ...state, boards: nextBoards, lists: nextLists, cards: nextCards, boardOrder: order, activeBoardId: active }
     }
 
+    case 'DUPLICATE_BOARD': {
+      const src = state.boards[action.boardId]
+      if (!src) return state
+      const newBoardId = uid('board')
+      const newListIds: string[] = []
+      const nextLists = { ...state.lists }
+      const nextCards = { ...state.cards }
+      for (const lid of src.listIds) {
+        const l = state.lists[lid]
+        if (!l) continue
+        const newLid = uid('list')
+        const newCardIds: string[] = []
+        for (const cid of l.cardIds) {
+          const c = state.cards[cid]
+          if (!c) continue
+          const newCid = uid('card')
+          nextCards[newCid] = {
+            ...c,
+            id: newCid,
+            checklists: c.checklists.map((cl) => ({
+              ...cl,
+              id: uid('cl'),
+              items: cl.items.map((it) => ({ ...it, id: uid('i') })),
+            })),
+            comments: c.comments.map((cm) => ({ ...cm, id: uid('c') })),
+            attachments: c.attachments.map((at) => ({ ...at, id: uid('a') })),
+            createdAt: new Date().toISOString(),
+          }
+          newCardIds.push(newCid)
+        }
+        nextLists[newLid] = { ...l, id: newLid, cardIds: newCardIds }
+        newListIds.push(newLid)
+      }
+      const newBoard: Board = { ...src, id: newBoardId, name: `${src.name} (копия)`, listIds: newListIds, archived: false }
+      const order = [...state.boardOrder]
+      const idx = order.indexOf(action.boardId)
+      order.splice(idx >= 0 ? idx + 1 : order.length, 0, newBoardId)
+      return { ...state, boards: { ...state.boards, [newBoardId]: newBoard }, lists: nextLists, cards: nextCards, boardOrder: order }
+    }
+
+    case 'ARCHIVE_BOARD': {
+      const b = state.boards[action.boardId]
+      if (!b || b.archived) return state
+      // Нельзя убрать в архив последнюю активную доску — иначе показывать нечего.
+      const activeCount = state.boardOrder.filter((id) => state.boards[id] && !state.boards[id].archived).length
+      if (activeCount <= 1) return state
+      const nextBoards = { ...state.boards, [action.boardId]: { ...b, archived: true } }
+      let active = state.activeBoardId
+      if (active === action.boardId) {
+        active = state.boardOrder.find((id) => nextBoards[id] && !nextBoards[id].archived) ?? active
+      }
+      return { ...state, boards: nextBoards, activeBoardId: active }
+    }
+
+    case 'UNARCHIVE_BOARD': {
+      const b = state.boards[action.boardId]
+      if (!b) return state
+      return { ...state, boards: { ...state.boards, [action.boardId]: { ...b, archived: false } } }
+    }
+
+    case 'SET_BOARD_MEMBERS': {
+      const b = state.boards[action.boardId]
+      if (!b) return state
+      const users = { ...state.users }
+      for (const m of action.members) {
+        users[m.id] = { ...users[m.id], id: m.id, name: m.name, initials: m.initials, color: m.color }
+      }
+      return {
+        ...state,
+        users,
+        boards: { ...state.boards, [action.boardId]: { ...b, memberIds: action.members.map((m) => m.id) } },
+      }
+    }
+
     case 'ADD_DEPARTMENT': {
       const n = action.name.trim()
       if (!n || state.departments.includes(n)) return state
@@ -330,16 +408,28 @@ export interface BoardActions {
   addBoard: (name: string) => void
   renameBoard: (boardId: string, name: string) => void
   deleteBoard: (boardId: string) => void
+  duplicateBoard: (boardId: string) => void
+  archiveBoard: (boardId: string) => void
+  unarchiveBoard: (boardId: string) => void
+  setBoardMembers: (boardId: string, members: User[]) => void
   addDepartment: (name: string) => void
   removeDepartment: (name: string) => void
+}
+
+export interface BoardSummary {
+  id: string
+  name: string
+  memberIds: string[]
 }
 
 interface BoardContextValue {
   state: BoardState
   actions: BoardActions
   mode: SyncMode
-  /** Доски пространства (для сайдбара и «Проектов»). */
-  boards: { id: string; name: string; memberIds: string[] }[]
+  /** Активные доски пространства (для сайдбара и «Проектов»). */
+  boards: BoardSummary[]
+  /** Доски в архиве. */
+  archivedBoards: BoardSummary[]
   activeBoardId: string
   /** Отделы компании. */
   departments: string[]
@@ -356,13 +446,18 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     void loadBoard().then(async (data) => {
       if (cancelled) return
+      let current: AppData = app
       if (data) {
-        dispatch({ type: 'HYDRATE', data: migrate(data) })
+        current = migrate(data)
+        dispatch({ type: 'HYDRATE', data: current })
         setMode('server')
       } else {
         const ok = await saveBoard(app)
         setMode(ok ? 'server' : 'local')
       }
+      // Открыть доску из ссылки вида /?board=<id> (кнопка «Скопировать ссылку»).
+      const wanted = new URLSearchParams(window.location.search).get('board')
+      if (wanted && current.boards[wanted]) dispatch({ type: 'SWITCH_BOARD', boardId: wanted })
       loadedRef.current = true
     })
     return () => {
@@ -400,6 +495,10 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       addBoard: (name) => dispatch({ type: 'ADD_BOARD', name }),
       renameBoard: (boardId, name) => dispatch({ type: 'RENAME_BOARD', boardId, name }),
       deleteBoard: (boardId) => dispatch({ type: 'DELETE_BOARD', boardId }),
+      duplicateBoard: (boardId) => dispatch({ type: 'DUPLICATE_BOARD', boardId }),
+      archiveBoard: (boardId) => dispatch({ type: 'ARCHIVE_BOARD', boardId }),
+      unarchiveBoard: (boardId) => dispatch({ type: 'UNARCHIVE_BOARD', boardId }),
+      setBoardMembers: (boardId, members) => dispatch({ type: 'SET_BOARD_MEMBERS', boardId, members }),
       addDepartment: (name) => dispatch({ type: 'ADD_DEPARTMENT', name }),
       removeDepartment: (name) => dispatch({ type: 'REMOVE_DEPARTMENT', name }),
     }),
@@ -410,14 +509,21 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const boards = useMemo(
     () =>
       app.boardOrder
-        .filter((id) => app.boards[id])
+        .filter((id) => app.boards[id] && !app.boards[id].archived)
+        .map((id) => ({ id, name: app.boards[id].name, memberIds: app.boards[id].memberIds })),
+    [app.boardOrder, app.boards],
+  )
+  const archivedBoards = useMemo(
+    () =>
+      app.boardOrder
+        .filter((id) => app.boards[id] && app.boards[id].archived)
         .map((id) => ({ id, name: app.boards[id].name, memberIds: app.boards[id].memberIds })),
     [app.boardOrder, app.boards],
   )
 
   const value = useMemo(
-    () => ({ state, actions, mode, boards, activeBoardId: app.activeBoardId, departments: app.departments }),
-    [state, actions, mode, boards, app.activeBoardId, app.departments],
+    () => ({ state, actions, mode, boards, archivedBoards, activeBoardId: app.activeBoardId, departments: app.departments }),
+    [state, actions, mode, boards, archivedBoards, app.activeBoardId, app.departments],
   )
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
 }
