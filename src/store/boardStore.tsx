@@ -42,6 +42,7 @@ type Action =
   | { type: 'ARCHIVE_BOARD'; boardId: string }
   | { type: 'UNARCHIVE_BOARD'; boardId: string }
   | { type: 'SET_BOARD_MEMBERS'; boardId: string; members: User[] }
+  | { type: 'SET_BOARD_BACKGROUND'; boardId: string; background: string }
   | { type: 'ADD_DEPARTMENT'; name: string }
   | { type: 'REMOVE_DEPARTMENT'; name: string }
 
@@ -318,6 +319,12 @@ function appReducer(state: AppData, action: Action): AppData {
       }
     }
 
+    case 'SET_BOARD_BACKGROUND': {
+      const b = state.boards[action.boardId]
+      if (!b) return state
+      return { ...state, boards: { ...state.boards, [action.boardId]: { ...b, background: action.background } } }
+    }
+
     case 'ADD_DEPARTMENT': {
       const n = action.name.trim()
       if (!n || state.departments.includes(n)) return state
@@ -412,6 +419,7 @@ export interface BoardActions {
   archiveBoard: (boardId: string) => void
   unarchiveBoard: (boardId: string) => void
   setBoardMembers: (boardId: string, members: User[]) => void
+  setBoardBackground: (boardId: string, background: string) => void
   addDepartment: (name: string) => void
   removeDepartment: (name: string) => void
 }
@@ -499,6 +507,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       archiveBoard: (boardId) => dispatch({ type: 'ARCHIVE_BOARD', boardId }),
       unarchiveBoard: (boardId) => dispatch({ type: 'UNARCHIVE_BOARD', boardId }),
       setBoardMembers: (boardId, members) => dispatch({ type: 'SET_BOARD_MEMBERS', boardId, members }),
+      setBoardBackground: (boardId, background) => dispatch({ type: 'SET_BOARD_BACKGROUND', boardId, background }),
       addDepartment: (name) => dispatch({ type: 'ADD_DEPARTMENT', name }),
       removeDepartment: (name) => dispatch({ type: 'REMOVE_DEPARTMENT', name }),
     }),

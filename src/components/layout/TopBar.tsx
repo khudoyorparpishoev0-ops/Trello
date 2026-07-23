@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Lock,
   Search,
@@ -10,8 +11,10 @@ import {
   Menu,
   Cloud,
   CloudOff,
+  Image as ImageIcon,
 } from 'lucide-react'
 import type { Filters } from '@/components/board/Board'
+import { BoardBackgroundModal } from '@/components/board/BoardBackgroundModal'
 import { useBoard } from '@/store/boardStore'
 import { useTheme } from '@/store/theme'
 import { Button } from '@/components/ui/Button'
@@ -30,6 +33,7 @@ interface TopBarProps {
 export function TopBar({ filters, onFiltersChange, onMenuClick }: TopBarProps) {
   const { state, mode } = useBoard()
   const { theme, toggle } = useTheme()
+  const [bgOpen, setBgOpen] = useState(false)
   const members = state.board.memberIds.map((id) => state.users[id]).filter(Boolean)
 
   return (
@@ -97,6 +101,7 @@ export function TopBar({ filters, onFiltersChange, onMenuClick }: TopBarProps) {
               )}
             </span>
           )}
+          <IconButton icon={ImageIcon} label="Фон доски" size="sm" onClick={() => setBgOpen(true)} />
           <IconButton icon={Bell} label="Уведомления" size="sm" className="hidden sm:inline-flex" />
           <IconButton
             icon={theme === 'dark' ? Sun : Moon}
@@ -152,6 +157,8 @@ export function TopBar({ filters, onFiltersChange, onMenuClick }: TopBarProps) {
           </FilterChip>
         </div>
       </div>
+
+      {bgOpen && <BoardBackgroundModal onClose={() => setBgOpen(false)} />}
     </header>
   )
 }

@@ -19,6 +19,7 @@ import { KanbanCardView } from './KanbanCard'
 import { useBoard } from '@/store/boardStore'
 import { isDoneList, listAccentColor } from '@/lib/design'
 import { dueStatus } from '@/lib/utils'
+import { boardBgStyle } from '@/lib/backgrounds'
 import type { Card, List } from '@/types'
 
 export interface Filters {
@@ -123,6 +124,7 @@ export function Board({ filters, onOpenCard }: BoardProps) {
       onDragEnd={onDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
+      <div className="relative h-full" style={boardBgStyle(board.background)}>
       <div className="flex h-full items-start gap-3 overflow-x-auto px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
         {board.listIds.map((listId) => {
           const list = lists[listId]
@@ -155,6 +157,7 @@ export function Board({ filters, onOpenCard }: BoardProps) {
             variant="dashed"
           />
         </div>
+      </div>
       </div>
 
       <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.4,0,0.2,1)' }}>
