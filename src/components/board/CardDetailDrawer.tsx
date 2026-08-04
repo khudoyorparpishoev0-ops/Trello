@@ -21,7 +21,7 @@ import { PriorityDot } from '@/components/ui/Priority'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { useBoard } from '@/store/boardStore'
 import { PRIORITY_META, PRIORITY_ORDER, listAccentColor } from '@/lib/design'
-import { checklistProgress, cn, formatBytes, formatDate } from '@/lib/utils'
+import { checklistProgress, cn, formatBytes, formatDate, taskCode } from '@/lib/utils'
 
 interface CardDetailDrawerProps {
   cardId: string | null
@@ -68,11 +68,17 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
       open={Boolean(cardId)}
       onClose={onClose}
       title={
-        <div className="flex items-center gap-2 text-caption text-muted">
-          <span className="h-2 w-2 rounded-pill" style={{ background: accent }} aria-hidden />
-          <span className="truncate">{state.board.name}</span>
-          <span className="text-faint">/</span>
-          <span className="truncate text-fg">{list.title}</span>
+        <div className="flex items-center gap-2.5">
+          <span className="font-mono text-[12px] font-semibold tracking-[0.02em] text-faint">
+            {taskCode(card.id)}
+          </span>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-pill px-2 py-0.5 text-caption font-medium"
+            style={{ background: `color-mix(in srgb, ${accent} 14%, transparent)`, color: accent }}
+          >
+            <span className="h-1.5 w-1.5 rounded-pill" style={{ background: accent }} aria-hidden />
+            {list.title}
+          </span>
         </div>
       }
     >

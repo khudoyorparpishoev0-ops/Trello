@@ -6,7 +6,8 @@ import { AvatarStack } from '@/components/ui/Avatar'
 import { CountBadge, LabelChip, Pill } from '@/components/ui/Badge'
 import { PriorityFlag } from '@/components/ui/Priority'
 import { ProgressBar } from '@/components/ui/ProgressBar'
-import { checklistProgress, cn, dueStatus, formatDate } from '@/lib/utils'
+import { labelColor } from '@/lib/design'
+import { checklistProgress, cn, dueStatus, formatDate, taskCode } from '@/lib/utils'
 
 interface KanbanCardViewProps {
   card: Card
@@ -43,24 +44,36 @@ export function KanbanCardView({
 
   const dueTone =
     status === 'overdue' ? 'error' : status === 'soon' ? 'warning' : status === 'done' ? 'success' : 'muted'
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0
+  const complete = total > 0 && done === total
+  // Полоса слева — цвет первой метки (спец §4), иначе цвет стадии.
+  const stripColor = cardLabels[0] ? labelColor(cardLabels[0].color) : accent
+  const hasFooter =
+    !!card.dueDate || total > 0 || card.comments.length > 0 || card.attachments.length > 0 || assignees.length > 0
 
   return (
     <article
       onClick={onOpen}
       className={cn(
-        'group relative cursor-pointer select-none overflow-hidden rounded-card border border-line bg-surface',
-        'p-3 pl-4 transition-all duration-200 ease-smooth',
+        'group relative cursor-grab select-none overflow-hidden rounded-card border border-line bg-surface shadow-card',
+        'py-3 pl-4 pr-3.5 transition-all duration-200 ease-smooth',
         'hover:border-line-strong hover:shadow-card-hover hover:-translate-y-0.5',
         dragging && 'opacity-40',
         overlay && 'rotate-2 shadow-card-hover',
       )}
     >
-      {/* Индикатор статуса (полоса) — Brand Book §7 */}
+      {/* Полоса первой метки (спец §4) */}
       <span
-        className="absolute inset-y-0 left-0 w-1"
-        style={{ background: accent }}
+        className="absolute inset-y-[14px] left-0 w-[3px] rounded-r-pill"
+        style={{ background: stripColor }}
         aria-hidden
       />
+
+      {/* Код задачи + приоритет */}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="font-mono text-[11px] font-semibold tracking-[0.02em] text-faint">{taskCode(card.id)}</span>
+        <PriorityFlag priority={card.priority} withLabel />
+      </div>
 
       {/* Метки */}
       {cardLabels.length > 0 && (
@@ -72,45 +85,46 @@ export function KanbanCardView({
       )}
 
       {/* Заголовок */}
-      <h4 className="line-clamp-2 text-small font-medium leading-5 text-fg">{card.title}</h4>
+      <h4 className="line-clamp-2 text-[15px] font-semibold leading-5 text-fg">{card.title}</h4>
 
-      {/* Приоритет + дедлайн */}
-      {(card.dueDate || card.priority) && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <PriorityFlag priority={card.priority} withLabel />
+      {/* Прогресс + процент (только если есть прогресс) */}
+      {done > 0 && (
+        <div className="mt-2.5 flex items-center gap-2.5">
+          <ProgressBar value={done} max={total} className="h-[5px] flex-1" />
+          <span className="w-8 text-right text-[11px] font-medium tabular-nums text-muted">{pct}%</span>
+        </div>
+      )}
+
+      {/* Подвал: срок · чек-лист · комментарии · вложения · исполнители */}
+      {hasFooter && (
+        <div className="mt-3 flex items-center gap-2.5">
           {card.dueDate && (
             <Pill tone={dueTone} icon={Calendar}>
               {formatDate(card.dueDate)}
             </Pill>
           )}
-        </div>
-      )}
-
-      {/* Прогресс чек-листа */}
-      {total > 0 && (
-        <div className="mt-3">
-          <div className="mb-1 flex items-center gap-1 text-caption text-muted">
-            <CheckSquare size={13} strokeWidth={2} />
-            <span className="tabular-nums">
+          {total > 0 && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 text-[11.5px] font-medium tabular-nums',
+                complete ? 'text-success' : 'text-muted',
+              )}
+            >
+              <CheckSquare size={13} strokeWidth={2} />
               {done}/{total}
             </span>
-          </div>
-          <ProgressBar value={done} max={total} />
-        </div>
-      )}
-
-      {/* Подвал: исполнители + счётчики */}
-      {(assignees.length > 0 || card.comments.length > 0 || card.attachments.length > 0) && (
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <AvatarStack users={assignees} size="sm" max={3} />
-          <div className="flex items-center gap-3">
-            {card.comments.length > 0 && (
-              <CountBadge icon={MessageSquare} count={card.comments.length} label="Комментарии" />
-            )}
-            {card.attachments.length > 0 && (
-              <CountBadge icon={Paperclip} count={card.attachments.length} label="Вложения" />
-            )}
-          </div>
+          )}
+          {card.comments.length > 0 && (
+            <CountBadge icon={MessageSquare} count={card.comments.length} label="Комментарии" />
+          )}
+          {card.attachments.length > 0 && (
+            <CountBadge icon={Paperclip} count={card.attachments.length} label="Вложения" />
+          )}
+          {assignees.length > 0 && (
+            <div className="ml-auto">
+              <AvatarStack users={assignees} size="sm" max={3} />
+            </div>
+          )}
         </div>
       )}
     </article>

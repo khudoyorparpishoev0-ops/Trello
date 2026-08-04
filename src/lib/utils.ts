@@ -73,3 +73,10 @@ export function checklistProgress(
   }
   return { done, total }
 }
+
+/** Стабильный код задачи вида IT-118 (выводится из id карточки). */
+export function taskCode(id: string): string {
+  let h = 0
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return 'IT-' + (100 + (h % 900))
+}
