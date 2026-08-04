@@ -136,7 +136,7 @@ export function Dashboard({ onMenuClick }: DashboardProps) {
                 <div key={user.id} className="flex items-center gap-3">
                   <Avatar user={user} size="sm" showStatus />
                   <span className="w-28 shrink-0 truncate text-small text-fg sm:w-40">{user.name}</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-pill bg-line">
+                  <div className="h-2 flex-1 overflow-hidden rounded-pill bg-track">
                     <div
                       className="h-full rounded-pill bg-brand transition-[width] duration-300 ease-smooth"
                       style={{ width: `${(count / m.maxLoad) * 100}%` }}
@@ -159,7 +159,7 @@ export function Dashboard({ onMenuClick }: DashboardProps) {
                   return (
                     <div key={p} className="flex items-center gap-3">
                       <span className="w-24 shrink-0 text-small text-muted">{meta.label}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-pill bg-line">
+                      <div className="h-2 flex-1 overflow-hidden rounded-pill bg-track">
                         <div
                           className="h-full rounded-pill transition-[width] duration-300 ease-smooth"
                           style={{ width: `${(count / max) * 100}%`, background: meta.color }}
@@ -180,7 +180,7 @@ export function Dashboard({ onMenuClick }: DashboardProps) {
                       <span className="h-2 w-2 rounded-pill" style={{ background: b.accent }} />
                       <span className="truncate">{b.title}</span>
                     </span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-pill bg-line">
+                    <div className="h-2 flex-1 overflow-hidden rounded-pill bg-track">
                       <div
                         className="h-full rounded-pill transition-[width] duration-300 ease-smooth"
                         style={{ width: `${(b.count / m.maxList) * 100}%`, background: b.accent }}

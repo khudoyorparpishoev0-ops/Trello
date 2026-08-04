@@ -14,7 +14,7 @@ export function ProgressBar({ value, max, className, colorByComplete = true }: P
   const complete = max > 0 && value >= max
   return (
     <div
-      className={cn('h-1.5 w-full overflow-hidden rounded-pill bg-line', className)}
+      className={cn('h-1.5 w-full overflow-hidden rounded-pill bg-track', className)}
       role="progressbar"
       aria-valuenow={value}
       aria-valuemin={0}

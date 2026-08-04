@@ -17,14 +17,17 @@ const config: Config = {
       colors: {
         // Тематические (через CSS-переменные)
         bg: 'var(--bg)',
+        sidebar: 'var(--sidebar)',
         surface: 'var(--surface)',
         'surface-2': 'var(--surface-2)',
+        col: 'var(--surface-2)', // колонки/поля (семантический алиас spec --col)
         elevated: 'var(--elevated)',
         fg: 'var(--fg)',
         muted: 'var(--muted)',
         faint: 'var(--faint)',
         line: 'var(--line)',
         'line-strong': 'var(--line-strong)',
+        track: 'var(--track)',
         hover: 'var(--hover)',
 
         // Бренд (Brand Book §2.1)
@@ -105,11 +108,18 @@ const config: Config = {
           from: { opacity: '0', transform: 'scale(0.98)' },
           to: { opacity: '1', transform: 'scale(1)' },
         },
+        // Выдвижная панель задачи: translateX(28px) → 0 + fade
+        'panel-in': {
+          from: { opacity: '0', transform: 'translateX(28px)' },
+          to: { opacity: '1', transform: 'translateX(0)' },
+        },
       },
       animation: {
-        'fade-in': 'fade-in 200ms cubic-bezier(0.4,0,0.2,1)',
-        'slide-up': 'slide-up 240ms cubic-bezier(0.4,0,0.2,1)',
-        'scale-in': 'scale-in 200ms cubic-bezier(0.4,0,0.2,1)',
+        'fade-in': 'fade-in 200ms ease',
+        // Панели/вкладки — по спецификации: 0.22–0.24s cubic-bezier(.22,.61,.36,1)
+        'slide-up': 'slide-up 220ms cubic-bezier(0.22,0.61,0.36,1)',
+        'scale-in': 'scale-in 200ms cubic-bezier(0.22,0.61,0.36,1)',
+        'panel-in': 'panel-in 240ms cubic-bezier(0.22,0.61,0.36,1)',
       },
       maxWidth: {
         container: '1440px',

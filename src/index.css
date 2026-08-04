@@ -9,31 +9,37 @@
   Значения rgba для muted/faint/line взяты из утверждённого макета доски.
 */
 @layer base {
+  /* Роли поверхностей — по хендофф-спецификации IT-HONA:
+     page(bg) → sidebar/header → col(колонки, поля) → surface(карточки). */
   :root,
   :root[data-theme='dark'] {
-    --bg: #0b0b0f; /* Ink */
-    --surface: #1e1e24; /* Graphite */
-    --surface-2: #131317; /* фон колонки */
-    --elevated: #16161b; /* поповеры/меню */
+    --bg: #0b0b0f; /* страница */
+    --sidebar: #0c0c10; /* сайдбар и верхняя панель */
+    --surface-2: #131317; /* колонки и поля ввода (spec --col) */
+    --surface: #1e1e24; /* карточки (spec --surface) */
+    --elevated: #1e1e24; /* модалки, поповеры, меню */
     --fg: #ffffff;
     --muted: rgba(255, 255, 255, 0.56);
     --faint: rgba(255, 255, 255, 0.34);
     --line: rgba(255, 255, 255, 0.08);
     --line-strong: rgba(255, 255, 255, 0.16);
+    --track: rgba(255, 255, 255, 0.08); /* полосы прогресса */
     --hover: rgba(255, 255, 255, 0.05);
     color-scheme: dark;
   }
 
   :root[data-theme='light'] {
-    --bg: #ffffff;
-    --surface: #f1f5f3;
-    --surface-2: #f6f8f7;
+    --bg: #f7f9f8; /* страница */
+    --sidebar: #ffffff; /* сайдбар и верхняя панель */
+    --surface-2: #f1f5f3; /* колонки и поля ввода */
+    --surface: #ffffff; /* карточки */
     --elevated: #ffffff;
     --fg: #1e1e24;
     --muted: rgba(30, 30, 36, 0.62);
-    --faint: rgba(30, 30, 36, 0.42);
+    --faint: rgba(30, 30, 36, 0.44);
     --line: rgba(30, 30, 36, 0.1);
     --line-strong: rgba(30, 30, 36, 0.18);
+    --track: rgba(30, 30, 36, 0.08);
     --hover: rgba(30, 30, 36, 0.04);
     color-scheme: light;
   }

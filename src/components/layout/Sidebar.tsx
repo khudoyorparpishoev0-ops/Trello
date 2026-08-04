@@ -220,7 +220,7 @@ interface SidebarProps {
 /** Боковая панель для десктопа (скрыта на узких экранах — там мобильное меню). */
 export function Sidebar({ activeView, onSelectView }: SidebarProps) {
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-surface-2 lg:flex">
+    <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-sidebar lg:flex">
       <SidebarContent activeView={activeView} onSelectView={onSelectView} />
     </aside>
   )

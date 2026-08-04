@@ -24,7 +24,7 @@ export function MobileNav({ open, onClose, activeView, onSelectView }: MobileNav
   return (
     <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} aria-hidden />
-      <div className="relative flex h-full w-[280px] max-w-[85vw] flex-col border-r border-line bg-surface-2 shadow-md animate-slide-up">
+      <div className="relative flex h-full w-[280px] max-w-[85vw] flex-col border-r border-line bg-sidebar shadow-md animate-slide-up">
         <div className="absolute right-2 top-3">
           <IconButton icon={X} label="Закрыть меню" size="sm" onClick={onClose} />
         </div>
