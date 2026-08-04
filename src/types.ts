@@ -20,6 +20,8 @@ export interface User {
   color: string
   /** Фото профиля (data-URL). Если задано — показывается вместо инициалов. */
   avatar?: string
+  /** Отдел (для раздела «Команда»). */
+  department?: string
   role?: WorkspaceRole
   online?: boolean
 }

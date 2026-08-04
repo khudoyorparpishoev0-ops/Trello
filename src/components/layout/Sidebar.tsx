@@ -3,7 +3,7 @@ import {
   SquareKanban,
   LayoutDashboard,
   Calendar,
-  BarChart3,
+  Users,
   Settings,
   ChevronRight,
   Plus,
@@ -18,14 +18,16 @@ import { useAuth } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
-export type AppView = 'board' | 'dashboard' | 'company' | 'calendar' | 'reports' | 'profile'
+export type AppView = 'board' | 'dashboard' | 'company' | 'calendar' | 'team' | 'reports' | 'profile'
 
-const NAV: { icon: LucideIcon; label: string; view?: AppView }[] = [
-  { icon: SquareKanban, label: 'Доски', view: 'board' },
+// Порядок и состав — по хендофф-спецификации §2.
+const NAV: { icon: LucideIcon; label: string; view: AppView }[] = [
   { icon: LayoutDashboard, label: 'Дашборд', view: 'dashboard' },
+  { icon: SquareKanban, label: 'Доска', view: 'board' },
+  { icon: Users, label: 'Команда', view: 'team' },
   { icon: Calendar, label: 'Календарь', view: 'calendar' },
   { icon: Building2, label: 'Компания', view: 'company' },
-  { icon: BarChart3, label: 'Отчёты', view: 'reports' },
+  { icon: Settings, label: 'Настройки', view: 'profile' },
 ]
 
 interface SidebarContentProps {
@@ -85,22 +87,23 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
       </div>
 
       {/* Навигация */}
-      <nav className="px-3 py-2">
+      <nav className="flex flex-col gap-[3px] px-3 py-2">
         {NAV.map((item) => {
-          const active = item.view !== undefined && item.view === activeView
+          const active = item.view === activeView
           return (
             <button
               key={item.label}
               type="button"
               onClick={() => go(item.view)}
               className={cn(
-                'flex w-full items-center gap-3 rounded-btn px-3 py-2 text-small font-medium transition-colors duration-200 ease-smooth',
-                active ? 'bg-hover text-fg' : 'text-muted hover:bg-hover hover:text-fg',
+                'flex w-full items-center gap-3 rounded-[10px] px-2.5 py-[9px] text-[13.5px] transition-colors duration-150',
+                active
+                  ? 'bg-brand-soft font-semibold text-brand'
+                  : 'font-medium text-muted hover:bg-hover hover:text-fg',
               )}
             >
               <item.icon size={18} strokeWidth={2} />
               {item.label}
-              {active && <span className="ml-auto h-1.5 w-1.5 rounded-pill bg-brand" />}
             </button>
           )
         })}

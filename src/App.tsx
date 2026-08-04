@@ -8,6 +8,7 @@ import { Dashboard } from '@/components/dashboard/Dashboard'
 import { Company } from '@/components/company/Company'
 import { Calendar } from '@/components/calendar/Calendar'
 import { Reports } from '@/components/reports/Reports'
+import { Team } from '@/components/team/Team'
 import { Profile } from '@/components/profile/Profile'
 
 export default function App() {
@@ -39,6 +40,7 @@ export default function App() {
         {view === 'reports' && (
           <Reports onMenuClick={() => setNavOpen(true)} onOpenCard={setOpenCardId} />
         )}
+        {view === 'team' && <Team onMenuClick={() => setNavOpen(true)} />}
         {view === 'profile' && <Profile onMenuClick={() => setNavOpen(true)} />}
       </div>
       <CardDetailDrawer cardId={openCardId} onClose={() => setOpenCardId(null)} />
