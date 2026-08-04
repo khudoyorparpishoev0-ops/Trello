@@ -30,7 +30,7 @@ export default function App() {
             </main>
           </>
         )}
-        {view === 'dashboard' && <Dashboard onMenuClick={() => setNavOpen(true)} />}
+        {view === 'dashboard' && <Dashboard onMenuClick={() => setNavOpen(true)} onOpenCard={setOpenCardId} />}
         {view === 'company' && (
           <Company onMenuClick={() => setNavOpen(true)} onNavigateBoard={() => setView('board')} />
         )}
