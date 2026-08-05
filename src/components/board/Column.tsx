@@ -33,7 +33,6 @@ interface ColumnProps {
   cards: Card[]
   users: Record<string, User>
   labels: Record<string, Label>
-  onAddCard: (title: string) => void
   /** Добавить карточку в начало списка (кнопка вверху колонки). */
   onAddCardTop: (title: string) => void
   onRename: (title: string) => void
@@ -47,7 +46,6 @@ export function Column({
   cards,
   users,
   labels,
-  onAddCard,
   onAddCardTop,
   onRename,
   onDelete,
@@ -136,7 +134,7 @@ export function Column({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-[8px] flex-1 flex-col gap-2 overflow-y-auto px-2 py-1',
+          'flex min-h-[8px] flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2 pt-1',
           'transition-colors duration-200',
           isOver && 'bg-hover',
         )}
@@ -162,17 +160,6 @@ export function Column({
             Перетащите карточку сюда
           </div>
         )}
-      </div>
-
-      {/* Добавить карточку */}
-      <div className="p-2">
-        <InlineComposer
-          triggerLabel="Добавить карточку"
-          placeholder="Название карточки…"
-          submitLabel="Добавить"
-          onSubmit={onAddCard}
-          autoReopen
-        />
       </div>
     </section>
   )
