@@ -34,6 +34,8 @@ interface ColumnProps {
   users: Record<string, User>
   labels: Record<string, Label>
   onAddCard: (title: string) => void
+  /** Добавить карточку в начало списка (кнопка вверху колонки). */
+  onAddCardTop: (title: string) => void
   onRename: (title: string) => void
   onDelete: () => void
   onOpenCard: (cardId: string) => void
@@ -46,6 +48,7 @@ export function Column({
   users,
   labels,
   onAddCard,
+  onAddCardTop,
   onRename,
   onDelete,
   onOpenCard,
@@ -117,6 +120,17 @@ export function Column({
           {overLimit ? 'Превышен WIP-лимит' : 'Достигнут WIP-лимит'}
         </p>
       )}
+
+      {/* Добавить карточку — вверху колонки (вставка в начало) */}
+      <div className="px-2 pb-1">
+        <InlineComposer
+          triggerLabel="Добавить карточку"
+          placeholder="Название карточки…"
+          submitLabel="Добавить"
+          onSubmit={onAddCardTop}
+          accent
+        />
+      </div>
 
       {/* Карточки */}
       <div

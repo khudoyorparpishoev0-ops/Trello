@@ -140,6 +140,7 @@ export function Board({ filters, onOpenCard }: BoardProps) {
               users={users}
               labels={labels}
               onAddCard={(title) => actions.addCard(list.id, title)}
+              onAddCardTop={(title) => actions.addCard(list.id, title, true)}
               onRename={(title) => actions.renameList(list.id, title)}
               onDelete={() => actions.deleteList(list.id)}
               onOpenCard={onOpenCard}

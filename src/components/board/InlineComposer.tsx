@@ -10,6 +10,8 @@ interface InlineComposerProps {
   onSubmit: (value: string) => void
   /** Стиль триггера: приглушённый (в колонке) или пунктирный (новый список). */
   variant?: 'ghost' | 'dashed'
+  /** Акцентный триггер (зелёный) — для кнопки «Добавить» вверху колонки. */
+  accent?: boolean
   autoReopen?: boolean
 }
 
@@ -20,6 +22,7 @@ export function InlineComposer({
   submitLabel,
   onSubmit,
   variant = 'ghost',
+  accent = false,
   autoReopen = false,
 }: InlineComposerProps) {
   const [open, setOpen] = useState(false)
@@ -55,9 +58,11 @@ export function InlineComposer({
         className={cn(
           'flex w-full items-center gap-2 rounded-btn px-3 py-2 text-small font-medium',
           'transition-colors duration-200 ease-smooth',
-          variant === 'ghost'
-            ? 'text-muted hover:bg-hover hover:text-fg'
-            : 'border border-dashed border-line-strong text-muted hover:border-muted hover:text-fg',
+          variant === 'dashed'
+            ? 'border border-dashed border-line-strong text-muted hover:border-muted hover:text-fg'
+            : accent
+              ? 'text-brand hover:bg-brand-soft'
+              : 'text-muted hover:bg-hover hover:text-fg',
         )}
       >
         <Plus size={16} strokeWidth={2} />
