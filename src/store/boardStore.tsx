@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -523,6 +524,8 @@ interface BoardContextValue {
   activeBoardId: string
   /** Отделы компании. */
   departments: string[]
+  /** Немедленно сохранить состояние на сервере (кнопка «Сохранить»). */
+  saveNow: () => Promise<boolean>
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -531,6 +534,15 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const [app, dispatch] = useReducer(appReducer, undefined, createSeedState)
   const [mode, setMode] = useState<SyncMode>('loading')
   const loadedRef = useRef(false)
+  // Всегда актуальный снимок состояния для немедленного сохранения (кнопка «Сохранить»).
+  const appRef = useRef(app)
+  appRef.current = app
+
+  const saveNow = useCallback(async () => {
+    const ok = await saveBoard(appRef.current)
+    setMode(ok ? 'server' : 'local')
+    return ok
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -617,8 +629,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(
-    () => ({ state, actions, mode, boards, archivedBoards, activeBoardId: app.activeBoardId, departments: app.departments }),
-    [state, actions, mode, boards, archivedBoards, app.activeBoardId, app.departments],
+    () => ({ state, actions, mode, boards, archivedBoards, activeBoardId: app.activeBoardId, departments: app.departments, saveNow }),
+    [state, actions, mode, boards, archivedBoards, app.activeBoardId, app.departments, saveNow],
   )
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
 }

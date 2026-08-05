@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react'
 import {
   AlignLeft,
   Calendar,
+  Check,
   CheckSquare,
   MessageSquare,
   Paperclip,
   Plus,
+  Save,
   Trash2,
   UserPlus,
   Tag,
@@ -34,7 +36,7 @@ interface CardDetailDrawerProps {
 
 /** Панель деталей карточки (Drawer). Полный набор атрибутов ТЗ логики §5–6. */
 export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
-  const { state, actions } = useBoard()
+  const { state, actions, saveNow } = useBoard()
   const card = cardId ? state.cards[cardId] : null
 
   const listId = useMemo(() => {
@@ -45,6 +47,14 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
   const list = listId ? state.lists[listId] : undefined
 
   const [comment, setComment] = useState('')
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+
+  const handleSave = async () => {
+    setSaveState('saving')
+    const ok = await saveNow()
+    setSaveState(ok ? 'saved' : 'idle')
+    if (ok) window.setTimeout(() => setSaveState('idle'), 1800)
+  }
 
   if (!card || !list) {
     return null
@@ -371,17 +381,28 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
           <Pill tone="muted" icon={Calendar}>
             Создано {formatDate(card.createdAt)}
           </Pill>
-          <Button
-            variant="danger"
-            size="sm"
-            icon={Trash2}
-            onClick={() => {
-              actions.deleteCard(card.id)
-              onClose()
-            }}
-          >
-            Удалить
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={saveState === 'saved' ? Check : Save}
+              loading={saveState === 'saving'}
+              onClick={handleSave}
+            >
+              {saveState === 'saved' ? 'Сохранено' : 'Сохранить'}
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              icon={Trash2}
+              onClick={() => {
+                actions.deleteCard(card.id)
+                onClose()
+              }}
+            >
+              Удалить
+            </Button>
+          </div>
         </div>
       </div>
     </Drawer>
