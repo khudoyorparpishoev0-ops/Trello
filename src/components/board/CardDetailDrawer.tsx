@@ -123,7 +123,9 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
             </div>
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* «Срок» и «Список» — в столбик: длинный текст «просрочено на N дн» не
+              влезал в половину панели и наезжал на «Список» (ТЗ «Выбор срока» §7). */}
+          <div className="grid grid-cols-1 gap-4">
             <Field icon={Calendar} label="Срок">
               <DueDatePicker
                 value={card.dueDate}
