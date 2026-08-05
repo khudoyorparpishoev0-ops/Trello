@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import {
   AlignLeft,
   Calendar,
-  Check,
   CheckSquare,
   MessageSquare,
   Paperclip,
@@ -47,13 +46,15 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
   const list = listId ? state.lists[listId] : undefined
 
   const [comment, setComment] = useState('')
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [saving, setSaving] = useState(false)
 
+  // «Сохранить» = сохранить и закрыть: сбрасываем состояние на сервер и,
+  // если успешно, закрываем панель (возврат на доску — это и есть подтверждение).
   const handleSave = async () => {
-    setSaveState('saving')
+    setSaving(true)
     const ok = await saveNow()
-    setSaveState(ok ? 'saved' : 'idle')
-    if (ok) window.setTimeout(() => setSaveState('idle'), 1800)
+    setSaving(false)
+    if (ok) onClose()
   }
 
   if (!card || !list) {
@@ -385,11 +386,11 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
             <Button
               variant="primary"
               size="sm"
-              icon={saveState === 'saved' ? Check : Save}
-              loading={saveState === 'saving'}
+              icon={Save}
+              loading={saving}
               onClick={handleSave}
             >
-              {saveState === 'saved' ? 'Сохранено' : 'Сохранить'}
+              Сохранить
             </Button>
             <Button
               variant="danger"
