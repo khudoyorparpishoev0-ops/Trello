@@ -179,6 +179,50 @@ export async function notifyAssignments(pool, oldData, newData, actorId, actorNa
   }
 }
 
+// ——— Уведомления об изменении срока ———
+const RU_MON = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
+function fmtDue(iso) {
+  try {
+    // Компания в Ташкенте (UTC+5) — показываем срок в её часовом поясе.
+    const d = new Date(iso)
+    const parts = new Intl.DateTimeFormat('ru-RU', {
+      timeZone: 'Asia/Tashkent', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(d)
+    const g = (t) => parts.find((p) => p.type === t)?.value ?? ''
+    return `${g('day')} ${RU_MON[Number(g('month')) - 1]}, ${g('hour')}:${g('minute')}`
+  } catch {
+    return String(iso)
+  }
+}
+
+// Вызывается при сохранении доски: у карточек, где сменился срок, уведомляет
+// исполнителей (кроме того, кто менял) — по ТЗ платформы.
+export async function notifyDueChanges(pool, oldData, newData, actorId, actorName) {
+  if (!TOKEN || !newData || !newData.cards) return
+  const oldCards = (oldData && oldData.cards) || {}
+  for (const c of Object.values(newData.cards)) {
+    const before = oldCards[c.id]
+    if (!before) continue // новая карточка — это не «изменение срока»
+    const oldDue = before.dueDate || null
+    const newDue = c.dueDate || null
+    if (oldDue === newDue) continue
+    for (const uid of c.assigneeIds ?? []) {
+      if (uid === actorId) continue
+      try {
+        const { rows } = await pool.query('SELECT tg_chat_id FROM users WHERE id = $1 AND tg_chat_id IS NOT NULL', [uid])
+        if (!rows.length) continue
+        const by = actorName ? `\nИзменил(а): ${escapeHtml(actorName)}` : ''
+        const msg = newDue
+          ? `🕒 <b>Срок задачи изменён</b>\n«${escapeHtml(c.title)}» → ${fmtDue(newDue)}${by}`
+          : `🕒 <b>Срок задачи снят</b>\n«${escapeHtml(c.title)}»${by}`
+        await send(rows[0].tg_chat_id, msg)
+      } catch (e) {
+        console.error('[tg] due:', e.message)
+      }
+    }
+  }
+}
+
 // Собрать задачи с дедлайном на сегодня/завтра из состояния доски.
 function collectUpcoming(data) {
   if (!data || !data.cards || !data.lists) return []

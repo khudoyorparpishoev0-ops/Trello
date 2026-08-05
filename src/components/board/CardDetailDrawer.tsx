@@ -23,26 +23,18 @@ import { PriorityDot } from '@/components/ui/Priority'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { useBoard } from '@/store/boardStore'
 import { PRIORITY_META, PRIORITY_ORDER, listAccentColor } from '@/lib/design'
-import { checklistProgress, cn, deadlineRemaining, dueStatus, formatBytes, formatDate, taskCode } from '@/lib/utils'
-import { useNow } from '@/store/now'
+import { checklistProgress, cn, formatBytes, formatDate, taskCode } from '@/lib/utils'
+import { DueDatePicker } from './DueDatePicker'
 
 interface CardDetailDrawerProps {
   cardId: string | null
   onClose: () => void
 }
 
-function toInputValue(iso?: string): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
 
 /** Панель деталей карточки (Drawer). Полный набор атрибутов ТЗ логики §5–6. */
 export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
   const { state, actions } = useBoard()
-  const now = useNow()
   const card = cardId ? state.cards[cardId] : null
 
   const listId = useMemo(() => {
@@ -122,30 +114,10 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <Field icon={Calendar} label="Срок">
-              <input
-                type="datetime-local"
-                value={toInputValue(card.dueDate)}
-                onChange={(e) =>
-                  actions.updateCard(card.id, {
-                    dueDate: e.target.value ? new Date(e.target.value).toISOString() : undefined,
-                  })
-                }
-                className="w-full rounded-input border border-line bg-surface px-3 py-2 text-small text-fg outline-none focus:border-brand"
+              <DueDatePicker
+                value={card.dueDate}
+                onChange={(iso) => actions.updateCard(card.id, { dueDate: iso })}
               />
-              {card.dueDate && (
-                <p
-                  className={cn(
-                    'mt-1.5 text-[12px] font-medium',
-                    dueStatus(card.dueDate, false, new Date(now)) === 'overdue'
-                      ? 'text-error'
-                      : dueStatus(card.dueDate, false, new Date(now)) === 'soon'
-                        ? 'text-warning'
-                        : 'text-muted',
-                  )}
-                >
-                  {deadlineRemaining(card.dueDate, now)}
-                </p>
-              )}
             </Field>
 
             <Field icon={AlignLeft} label="Список">

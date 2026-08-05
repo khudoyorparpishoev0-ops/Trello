@@ -10,7 +10,7 @@ import http from 'node:http'
 import crypto from 'node:crypto'
 import pg from 'pg'
 import Redis from 'ioredis'
-import { initTelegram, getBotUsername, telegramEnabled, notifyAssignments } from './telegram.js'
+import { initTelegram, getBotUsername, telegramEnabled, notifyAssignments, notifyDueChanges } from './telegram.js'
 
 const PORT = Number(process.env.PORT ?? 3000)
 const INVITE_CODE = process.env.INVITE_CODE ?? ''
@@ -420,9 +420,13 @@ async function handle(req, res) {
          ON CONFLICT (id) DO UPDATE SET data = $1::jsonb, updated_at = now()`,
         [body],
       )
-      // Уведомления о назначении — в фоне, ответ не задерживаем.
-      notifyAssignments(pool, prev.rows[0]?.data, newData, actor?.id, actor?.name).catch((e) =>
+      // Уведомления (назначение + смена срока) — в фоне, ответ не задерживаем.
+      const prevData = prev.rows[0]?.data
+      notifyAssignments(pool, prevData, newData, actor?.id, actor?.name).catch((e) =>
         console.error('[tg] assign:', e.message),
+      )
+      notifyDueChanges(pool, prevData, newData, actor?.id, actor?.name).catch((e) =>
+        console.error('[tg] due:', e.message),
       )
       return json(res, 200, { ok: true })
     }
