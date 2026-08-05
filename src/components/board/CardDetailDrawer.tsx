@@ -23,7 +23,8 @@ import { PriorityDot } from '@/components/ui/Priority'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { useBoard } from '@/store/boardStore'
 import { PRIORITY_META, PRIORITY_ORDER, listAccentColor } from '@/lib/design'
-import { checklistProgress, cn, formatBytes, formatDate, taskCode } from '@/lib/utils'
+import { checklistProgress, cn, deadlineRemaining, dueStatus, formatBytes, formatDate, taskCode } from '@/lib/utils'
+import { useNow } from '@/store/now'
 
 interface CardDetailDrawerProps {
   cardId: string | null
@@ -41,6 +42,7 @@ function toInputValue(iso?: string): string {
 /** Панель деталей карточки (Drawer). Полный набор атрибутов ТЗ логики §5–6. */
 export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
   const { state, actions } = useBoard()
+  const now = useNow()
   const card = cardId ? state.cards[cardId] : null
 
   const listId = useMemo(() => {
@@ -119,7 +121,7 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field icon={Calendar} label="Дедлайн">
+            <Field icon={Calendar} label="Срок">
               <input
                 type="datetime-local"
                 value={toInputValue(card.dueDate)}
@@ -128,8 +130,22 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
                     dueDate: e.target.value ? new Date(e.target.value).toISOString() : undefined,
                   })
                 }
-                className="w-full rounded-input border border-line bg-surface px-3 py-2 text-small text-fg outline-none focus:border-brand [color-scheme:dark]"
+                className="w-full rounded-input border border-line bg-surface px-3 py-2 text-small text-fg outline-none focus:border-brand"
               />
+              {card.dueDate && (
+                <p
+                  className={cn(
+                    'mt-1.5 text-[12px] font-medium',
+                    dueStatus(card.dueDate, false, new Date(now)) === 'overdue'
+                      ? 'text-error'
+                      : dueStatus(card.dueDate, false, new Date(now)) === 'soon'
+                        ? 'text-warning'
+                        : 'text-muted',
+                  )}
+                >
+                  {deadlineRemaining(card.dueDate, now)}
+                </p>
+              )}
             </Field>
 
             <Field icon={AlignLeft} label="Список">

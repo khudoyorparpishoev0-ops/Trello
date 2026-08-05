@@ -1,40 +1,23 @@
-import { useEffect, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { MessageSquare, Paperclip, CheckSquare, Calendar, Clock } from 'lucide-react'
+import type { CSSProperties } from 'react'
 import type { Card, Label, User } from '@/types'
 import { AvatarStack } from '@/components/ui/Avatar'
-import { CountBadge, LabelChip, Pill } from '@/components/ui/Badge'
+import { CountBadge, LabelChip } from '@/components/ui/Badge'
 import { PriorityFlag } from '@/components/ui/Priority'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { labelColor } from '@/lib/design'
-import { cardAge, checklistProgress, cn, dueStatus, formatDate, taskCode } from '@/lib/utils'
-
-/** Живой таймер «сколько прошло с создания». Дата создания не редактируется. */
-function CardTimer({ createdAt }: { createdAt: string }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [])
-  return (
-    <span
-      title={`Создано: ${formatDate(createdAt)} (не изменяется)`}
-      className="inline-flex items-center gap-1 rounded-pill bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-warning"
-    >
-      <Clock size={11} strokeWidth={2} />
-      {cardAge(createdAt, now)}
-    </span>
-  )
-}
+import { useNow } from '@/store/now'
+import { checklistProgress, cn, deadlineCountdown, dueStatus, formatDate, taskCode } from '@/lib/utils'
 
 interface KanbanCardViewProps {
   card: Card
   users: Record<string, User>
   labels: Record<string, Label>
-  /** Цвет индикатора статуса (полоса слева) — по стадии/списку. */
+  /** Цвет полосы/стадии (передаётся колонкой); если у карточки есть метки — берётся цвет первой. */
   accent: string
-  /** Карточка в списке «Готово» — не подсвечиваем дедлайн как просроченный. */
+  /** Карточка в списке «Готово» — дедлайн не подсвечивается как просроченный. */
   isDone?: boolean
   dragging?: boolean
   overlay?: boolean
@@ -42,32 +25,34 @@ interface KanbanCardViewProps {
 }
 
 /**
- * Канбан-карточка — центральный элемент (Brand Book §7).
- * Состав: индикатор статуса, метки, заголовок, приоритет, дедлайн,
- * прогресс чек-листа, исполнители, счётчики комментариев и вложений.
+ * Канбан-карточка (ТЗ «Карточка задачи»).
+ * Шапка: код · таймер до дедлайна · приоритет. Ниже: метки, название,
+ * прогресс, нижний ряд (дедлайн-блок, чек-лист, комментарии, вложения, аватары).
  */
-export function KanbanCardView({
-  card,
-  users,
-  labels,
-  accent,
-  isDone,
-  dragging,
-  overlay,
-  onOpen,
-}: KanbanCardViewProps) {
+export function KanbanCardView({ card, users, labels, accent, isDone, dragging, overlay, onOpen }: KanbanCardViewProps) {
+  const now = useNow()
   const { done, total } = checklistProgress(card.checklists)
-  const status = dueStatus(card.dueDate, isDone ?? false)
-  const assignees = card.assigneeIds.map((id) => users[id]).filter(Boolean)
-  const cardLabels = card.labelIds.map((id) => labels[id]).filter(Boolean)
-
-  const dueTone =
-    status === 'overdue' ? 'error' : status === 'soon' ? 'warning' : status === 'done' ? 'success' : 'muted'
   const pct = total > 0 ? Math.round((done / total) * 100) : 0
   const complete = total > 0 && done === total
-  // Полоса слева — цвет первой метки (спец §4), иначе цвет стадии.
-  const stripColor = cardLabels[0] ? labelColor(cardLabels[0].color) : accent
-  const hasFooter =
+  const assignees = card.assigneeIds.map((id) => users[id]).filter(Boolean)
+  const cardLabels = card.labelIds.map((id) => labels[id]).filter(Boolean)
+  const stripColor = cardLabels[0] ? labelColor(cardLabels[0].color) : accent || 'rgba(140,140,150,.5)'
+
+  // Цвет таймера и блока дедлайна определяется СРОКОМ, а не приоритетом (ТЗ §4.4).
+  const status = dueStatus(card.dueDate, isDone ?? false, new Date(now))
+  const dueColor = status === 'overdue' ? '#EF4444' : status === 'soon' ? '#F59E0B' : null
+  const timerStyle: CSSProperties = dueColor
+    ? { color: dueColor, background: `color-mix(in srgb, ${dueColor} 14%, transparent)` }
+    : { color: 'var(--faint)', background: 'var(--hover)' }
+  const blockStyle: CSSProperties = dueColor
+    ? {
+        color: dueColor,
+        background: `color-mix(in srgb, ${dueColor} 14%, transparent)`,
+        borderColor: `color-mix(in srgb, ${dueColor} 30%, transparent)`,
+      }
+    : { color: 'var(--muted)', background: 'var(--hover)', borderColor: 'var(--line)' }
+
+  const hasBottom =
     !!card.dueDate || total > 0 || card.comments.length > 0 || card.attachments.length > 0 || assignees.length > 0
 
   return (
@@ -75,23 +60,31 @@ export function KanbanCardView({
       onClick={onOpen}
       className={cn(
         'group relative cursor-grab select-none overflow-hidden rounded-card border border-line bg-surface shadow-card',
-        'py-3 pl-4 pr-3.5 transition-all duration-200 ease-smooth',
-        'hover:border-line-strong hover:shadow-card-hover hover:-translate-y-0.5',
+        'flex flex-col gap-[9px] py-3 pl-4 pr-3.5 transition-[transform,box-shadow,border-color] duration-200 ease-smooth',
+        'hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover',
         dragging && 'opacity-40',
         overlay && 'rotate-2 shadow-card-hover',
       )}
     >
-      {/* Полоса первой метки (спец §4) */}
+      {/* Полоса статуса — цвет первой метки (ТЗ §1) */}
       <span
-        className="absolute inset-y-[14px] left-0 w-[3px] rounded-r-pill"
+        className="absolute inset-y-[14px] left-0 w-[3px] rounded-r-[3px]"
         style={{ background: stripColor }}
         aria-hidden
       />
 
-      {/* Код задачи + таймер создания + приоритет */}
-      <div className="mb-2 flex items-center gap-2">
+      {/* Шапка: код · таймер до дедлайна · приоритет — в одну строку */}
+      <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[11px] font-semibold tracking-[0.02em] text-faint">{taskCode(card.id)}</span>
-        <CardTimer createdAt={card.createdAt} />
+        {card.dueDate && (
+          <span
+            className="inline-flex items-center gap-1 whitespace-nowrap rounded-[7px] px-[7px] py-0.5 font-mono text-[11px] font-semibold"
+            style={timerStyle}
+          >
+            <Clock size={11} strokeWidth={2} />
+            {deadlineCountdown(card.dueDate, now)}
+          </span>
+        )}
         <span className="ml-auto shrink-0">
           <PriorityFlag priority={card.priority} withLabel />
         </span>
@@ -99,51 +92,57 @@ export function KanbanCardView({
 
       {/* Метки */}
       {cardLabels.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {cardLabels.map((l) => (
             <LabelChip key={l.id} name={l.name} color={l.color} />
           ))}
         </div>
       )}
 
-      {/* Заголовок */}
-      <h4 className="line-clamp-2 text-[15px] font-semibold leading-5 text-fg">{card.title}</h4>
+      {/* Название — без обрезки, переносится */}
+      <h4 className="text-[15px] font-semibold leading-5 text-fg [text-wrap:pretty]">{card.title}</h4>
 
-      {/* Прогресс + процент (только если есть прогресс) */}
+      {/* Прогресс — только если > 0 */}
       {done > 0 && (
-        <div className="mt-2.5 flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5">
           <ProgressBar value={done} max={total} className="h-[5px] flex-1" />
-          <span className="w-8 text-right text-[11px] font-medium tabular-nums text-muted">{pct}%</span>
+          <span className="w-8 text-right font-mono text-[11px] font-semibold tabular-nums text-faint">{pct}%</span>
         </div>
       )}
 
-      {/* Подвал: срок · чек-лист · комментарии · вложения · исполнители */}
-      {hasFooter && (
-        <div className="mt-3 flex items-center gap-2.5">
-          {card.dueDate && (
-            <Pill tone={dueTone} icon={Calendar}>
-              {formatDate(card.dueDate)}
-            </Pill>
-          )}
-          {total > 0 && (
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 text-[11.5px] font-medium tabular-nums',
-                complete ? 'text-success' : 'text-muted',
-              )}
-            >
-              <CheckSquare size={13} strokeWidth={2} />
-              {done}/{total}
-            </span>
-          )}
-          {card.comments.length > 0 && (
-            <CountBadge icon={MessageSquare} count={card.comments.length} label="Комментарии" />
-          )}
-          {card.attachments.length > 0 && (
-            <CountBadge icon={Paperclip} count={card.attachments.length} label="Вложения" />
-          )}
+      {/* Нижний ряд */}
+      {hasBottom && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 text-muted">
+            {card.dueDate && (
+              <span
+                className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] border px-[7px] py-[3px] text-[11px] font-semibold"
+                style={blockStyle}
+              >
+                <Calendar size={13} strokeWidth={2} />
+                {formatDate(card.dueDate)}
+              </span>
+            )}
+            {total > 0 && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 text-[12px] font-medium tabular-nums',
+                  complete ? 'text-success' : 'text-muted',
+                )}
+              >
+                <CheckSquare size={14} strokeWidth={2} />
+                {done}/{total}
+              </span>
+            )}
+            {card.comments.length > 0 && (
+              <CountBadge icon={MessageSquare} count={card.comments.length} label="Комментарии" />
+            )}
+            {card.attachments.length > 0 && (
+              <CountBadge icon={Paperclip} count={card.attachments.length} label="Вложения" />
+            )}
+          </div>
           {assignees.length > 0 && (
-            <div className="ml-auto">
+            <div className="ml-auto flex pl-1.5">
               <AvatarStack users={assignees} size="sm" max={3} />
             </div>
           )}

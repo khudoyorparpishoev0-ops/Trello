@@ -5,15 +5,18 @@ import App from './App'
 import { ThemeProvider } from '@/store/theme'
 import { BoardProvider } from '@/store/boardStore'
 import { AuthGate } from '@/store/auth'
+import { NowProvider } from '@/store/now'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
-      <AuthGate>
-        <BoardProvider>
-          <App />
-        </BoardProvider>
-      </AuthGate>
+      <NowProvider>
+        <AuthGate>
+          <BoardProvider>
+            <App />
+          </BoardProvider>
+        </AuthGate>
+      </NowProvider>
     </ThemeProvider>
   </StrictMode>,
 )

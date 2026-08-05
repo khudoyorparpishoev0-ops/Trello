@@ -51,6 +51,49 @@ export function dueStatus(
   return 'normal'
 }
 
+/**
+ * Обратный отсчёт до дедлайна для таймера в шапке карточки (спец §4.3 countdown):
+ * не просрочено — `Nд HH:MM` или `HH:MM` (меньше суток); просрочено — `−Nд` / `−N ч`.
+ */
+export function deadlineCountdown(dueIso: string | undefined, now: number = Date.now()): string {
+  if (!dueIso) return ''
+  const diff = new Date(dueIso).getTime() - now
+  if (Number.isNaN(diff)) return ''
+  const abs = Math.abs(diff)
+  const days = Math.floor(abs / 86400000)
+  const hours = Math.floor((abs % 86400000) / 3600000)
+  const mins = Math.floor((abs % 3600000) / 60000)
+  const p = (n: number) => String(n).padStart(2, '0')
+  if (diff < 0) {
+    if (days >= 1) return `−${days}д`
+    if (hours >= 1) return `−${hours} ч`
+    return `−${mins} мин`
+  }
+  if (days >= 1) return `${days}д ${p(hours)}:${p(mins)}`
+  return `${p(hours)}:${p(mins)}`
+}
+
+/**
+ * Полная формулировка остатка для панели задачи (спец §4.3 remaining):
+ * `осталось N дн N ч` / `осталось N ч NN мин` / `просрочено на N дн`.
+ */
+export function deadlineRemaining(dueIso: string | undefined, now: number = Date.now()): string {
+  if (!dueIso) return ''
+  const diff = new Date(dueIso).getTime() - now
+  if (Number.isNaN(diff)) return ''
+  const abs = Math.abs(diff)
+  const days = Math.floor(abs / 86400000)
+  const hours = Math.floor((abs % 86400000) / 3600000)
+  const mins = Math.floor((abs % 3600000) / 60000)
+  if (diff < 0) {
+    if (days >= 1) return `просрочено на ${days} дн`
+    if (hours >= 1) return `просрочено на ${hours} ч`
+    return `просрочено на ${mins} мин`
+  }
+  if (days >= 1) return `осталось ${days} дн ${hours} ч`
+  return `осталось ${hours} ч ${String(mins).padStart(2, '0')} мин`
+}
+
 /** Человекочитаемый размер файла. */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} Б`
@@ -79,24 +122,4 @@ export function taskCode(id: string): string {
   let h = 0
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   return 'IT-' + (100 + (h % 900))
-}
-
-/**
- * «Таймер создания» карточки в виде часов: MM:SS → H:MM:SS → «Nд HH:MM».
- * Тикает с момента создания; дата создания ставится один раз и не
- * редактируется, поэтому значение всегда достоверно. `now` — для тестов.
- */
-export function cardAge(iso?: string, now: number = Date.now()): string {
-  if (!iso) return '00:00'
-  const ms = now - new Date(iso).getTime()
-  if (Number.isNaN(ms) || ms < 0) return '00:00'
-  const total = Math.floor(ms / 1000)
-  const s = total % 60
-  const m = Math.floor(total / 60) % 60
-  const h = Math.floor(total / 3600) % 24
-  const d = Math.floor(total / 86400)
-  const p = (n: number) => String(n).padStart(2, '0')
-  if (d > 0) return `${d}д ${p(h)}:${p(m)}`
-  if (h > 0) return `${h}:${p(m)}:${p(s)}`
-  return `${p(m)}:${p(s)}`
 }
