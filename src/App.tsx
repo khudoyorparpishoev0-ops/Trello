@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Sidebar, type AppView } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
+import { MobileTabBar } from '@/components/layout/MobileTabBar'
 import { TopBar } from '@/components/layout/TopBar'
 import { Board, type Filters } from '@/components/board/Board'
 import { CardDetailDrawer } from '@/components/board/CardDetailDrawer'
@@ -21,7 +22,7 @@ export default function App() {
     <div className="flex h-screen w-full overflow-hidden bg-bg text-fg">
       <Sidebar activeView={view} onSelectView={setView} />
       <MobileNav open={navOpen} onClose={() => setNavOpen(false)} activeView={view} onSelectView={setView} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0">
         {view === 'board' && (
           <>
             <TopBar filters={filters} onFiltersChange={setFilters} onMenuClick={() => setNavOpen(true)} />
@@ -43,6 +44,21 @@ export default function App() {
         {view === 'team' && <Team onMenuClick={() => setNavOpen(true)} />}
         {view === 'profile' && <Settings onMenuClick={() => setNavOpen(true)} />}
       </div>
+      <MobileTabBar
+        activeView={view}
+        onlyMine={filters.onlyMine}
+        onDashboard={() => setView('dashboard')}
+        onBoard={() => {
+          setView('board')
+          setFilters((f) => ({ ...f, onlyMine: false }))
+        }}
+        onTasks={() => {
+          setView('board')
+          setFilters((f) => ({ ...f, onlyMine: true }))
+        }}
+        onCalendar={() => setView('calendar')}
+        onMore={() => setNavOpen(true)}
+      />
       <CardDetailDrawer cardId={openCardId} onClose={() => setOpenCardId(null)} />
     </div>
   )
