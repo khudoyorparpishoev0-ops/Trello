@@ -36,7 +36,11 @@ export default function App() {
           <Company onMenuClick={() => setNavOpen(true)} onNavigateBoard={() => setView('board')} />
         )}
         {view === 'calendar' && (
-          <Calendar onMenuClick={() => setNavOpen(true)} onOpenCard={setOpenCardId} />
+          <Calendar
+            onMenuClick={() => setNavOpen(true)}
+            onOpenCard={setOpenCardId}
+            onNavigateBoard={() => setView('board')}
+          />
         )}
         {view === 'reports' && (
           <Reports onMenuClick={() => setNavOpen(true)} onOpenCard={setOpenCardId} />
