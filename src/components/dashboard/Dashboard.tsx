@@ -13,17 +13,38 @@ interface DashboardProps {
   onOpenCard?: (id: string) => void
 }
 
-// Демо-данные скорости команды (8 спринтов) — в реальной версии из API.
-const SPRINTS = [
-  { s: 'S-07', plan: 20, done: 18 },
-  { s: 'S-08', plan: 22, done: 24 },
-  { s: 'S-09', plan: 24, done: 21 },
-  { s: 'S-10', plan: 23, done: 23 },
-  { s: 'S-11', plan: 26, done: 28 },
-  { s: 'S-12', plan: 25, done: 22 },
-  { s: 'S-13', plan: 28, done: 30 },
-  { s: 'S-14', plan: 27, done: 26 },
-]
+// «Скорость по отделам» (ТЗ «Диаграмма по отделам» §3): закрытые задачи за
+// месяц и план по отделам. Значения — демо (в реальной версии из API);
+// короткая подпись задаётся в данных, не вычисляется обрезкой.
+const DEPT_STATS: Record<string, { short?: string; v: number; plan: number }> = {
+  'Проектирование': { short: 'Проект.', v: 18, plan: 24 },
+  'Монтаж': { v: 21, plan: 24 },
+  'ПТО': { v: 16, plan: 22 },
+  'Снабжение': { short: 'Снабж.', v: 24, plan: 26 },
+  'IT-отдел': { short: 'IT', v: 27, plan: 26 },
+  'Сервис': { v: 22, plan: 28 },
+  'Склад': { v: 29, plan: 28 },
+  'Администрация': { short: 'Админ.', v: 23, plan: 30 },
+}
+
+// Читаемые сокращения для прежнего состава справочника (существующие данные).
+const LEGACY_SHORT: Record<string, string> = {
+  'Стратегического планирования': 'Стратег.',
+  'Информационных технологий (IT)': 'IT',
+  'Закупок и снабжения': 'Снабж.',
+  'Отдел проектирования': 'Проект.',
+  'Производственный отдел': 'Производ.',
+  'Финансовый отдел': 'Финансы',
+}
+
+/** Демо-показатели отдела: спековые значения либо детерминированные из названия. */
+function deptStat(name: string): { s: string; short: string; v: number; plan: number } {
+  const known = DEPT_STATS[name]
+  if (known) return { s: name, short: known.short ?? name, v: known.v, plan: known.plan }
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 997
+  return { s: name, short: LEGACY_SHORT[name] ?? name, v: 14 + (h % 15), plan: 18 + ((h >> 3) % 13) }
+}
 const ACTIVITY = [
   { who: 0, verb: 'переместил(а)', obj: 0, time: '5 мин назад' },
   { who: 1, verb: 'завершил(а)', obj: 1, time: '32 мин назад' },
@@ -33,7 +54,7 @@ const ACTIVITY = [
 ]
 
 export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
-  const { state } = useBoard()
+  const { state, departments } = useBoard()
   const { theme, toggle } = useTheme()
 
   const m = useMemo(() => {
@@ -81,7 +102,10 @@ export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
     return { total, done, active, overdue, workload, avgPct, deadlines: deadlines.slice(0, 5), members }
   }, [state])
 
-  const maxSprint = Math.max(...SPRINTS.flatMap((x) => [x.plan, x.done]))
+  // Отделы — из справочника раздела «Компания»: добавленный отдел появляется
+  // в диаграмме. Максимум считается по всем значениям, включая планы.
+  const depts = useMemo(() => departments.map(deptStat), [departments])
+  const maxDept = Math.max(1, ...depts.flatMap((d) => [d.v, d.plan]))
 
   return (
     <div className="flex h-full flex-col">
@@ -111,22 +135,42 @@ export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
 
           {/* Ряд 2: скорость + загрузка */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.55fr_1fr]">
-            <Card title="Скорость команды" legend={<Legend />}>
-              <div className="flex h-[168px] items-stretch gap-3.5 pt-2">
-                {SPRINTS.map((sp) => {
-                  const met = sp.done >= sp.plan
+            <Card
+              title="Скорость по отделам"
+              sub="Закрытых задач за месяц · план и факт по отделам"
+              legend={<Legend />}
+            >
+              <div className="flex h-[168px] items-stretch gap-3.5">
+                {depts.map((d) => {
+                  const met = d.v >= d.plan
                   return (
-                    <div key={sp.s} className="flex h-full flex-1 flex-col items-center gap-2">
-                      <div className="relative flex w-full flex-1 items-end justify-center">
+                    <div key={d.s} className="flex h-full min-w-0 flex-1 flex-col items-stretch gap-2">
+                      {/* Зона столбцов — ФИКСИРОВАННАЯ высота (ТЗ §2.1): flex:1 здесь
+                          нельзя — многострочные подписи съедали бы высоту по-разному,
+                          нулевые линии разъехались бы и проценты начали бы врать. */}
+                      <div className="relative flex h-[132px] w-full flex-none items-end justify-center">
                         {/* план (фон) */}
-                        <div className="absolute bottom-0 w-full max-w-[26px] rounded-t-[8px] bg-track" style={{ height: `${(sp.plan / maxSprint) * 100}%` }} />
+                        <div
+                          className="absolute bottom-0 w-full max-w-[38px] rounded-t-[8px] bg-track"
+                          style={{ height: `${Math.round((d.plan / maxDept) * 100)}%` }}
+                        />
                         {/* факт */}
                         <div
-                          className="relative w-full max-w-[26px] rounded-t-[8px] transition-[height] duration-300"
-                          style={{ height: `${(sp.done / maxSprint) * 100}%`, background: met ? '#16A34A' : 'color-mix(in srgb, #16A34A 62%, transparent)' }}
+                          className="relative w-full max-w-[38px] rounded-t-[8px] transition-[height] duration-300 ease-smooth"
+                          style={{
+                            height: `${Math.round((d.v / maxDept) * 100)}%`,
+                            background: met ? '#16A34A' : 'color-mix(in srgb, #16A34A 62%, transparent)',
+                          }}
                         />
                       </div>
-                      <span className="text-[11px] tabular-nums text-faint">{sp.s}</span>
+                      {/* Подпись — отдельной строкой ПОД зоной; width:100%, одна строка
+                          с многоточием, без overflow-wrap: anywhere (ТЗ §2.2). */}
+                      <span
+                        title={d.s}
+                        className="w-full flex-none truncate text-center text-[11px] font-medium leading-[14px] text-faint"
+                      >
+                        {d.short}
+                      </span>
                     </div>
                   )
                 })}
@@ -226,14 +270,17 @@ function Kpi({
   )
 }
 
-function Card({ title, children, legend, live }: { title: string; children: ReactNode; legend?: ReactNode; live?: boolean }) {
+function Card({ title, sub, children, legend, live }: { title: string; sub?: string; children: ReactNode; legend?: ReactNode; live?: boolean }) {
   return (
     <section className="rounded-card border border-line bg-surface p-5 shadow-card">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-fg">{title}</h2>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-[3px]">
+          <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-fg">{title}</h2>
+          {sub && <span className="text-[12px] text-muted">{sub}</span>}
+        </div>
         {legend}
         {live && (
-          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-faint">
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11.5px] text-faint">
             <span className="h-1.5 w-1.5 rounded-pill bg-success" /> в реальном времени
           </span>
         )}
@@ -245,9 +292,9 @@ function Card({ title, children, legend, live }: { title: string; children: Reac
 
 function Legend() {
   return (
-    <div className="flex items-center gap-3 text-[11.5px] text-faint">
-      <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-[3px] bg-brand" /> Закрыто</span>
-      <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-[3px] bg-track" /> План</span>
+    <div className="flex shrink-0 items-center gap-3.5 text-[11.5px] font-medium text-muted">
+      <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-[2px] bg-brand" /> Закрыто</span>
+      <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-[2px] bg-track" /> План</span>
     </div>
   )
 }

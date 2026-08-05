@@ -9,14 +9,16 @@ import type {
 } from '@/types'
 import { uid } from '@/lib/utils'
 
-/** Отделы компании по умолчанию. */
+/** Отделы компании по умолчанию (ТЗ «Диаграмма по отделам» §3). */
 export const DEFAULT_DEPARTMENTS = [
-  'Стратегического планирования',
-  'Информационных технологий (IT)',
-  'Закупок и снабжения',
-  'Отдел проектирования',
-  'Производственный отдел',
-  'Финансовый отдел',
+  'Проектирование',
+  'Монтаж',
+  'ПТО',
+  'Снабжение',
+  'IT-отдел',
+  'Сервис',
+  'Склад',
+  'Администрация',
 ]
 
 /** Новая пустая доска с тремя списками (To Do / In Progress / Done). */
@@ -50,11 +52,11 @@ function buildDates() {
 }
 
 const USERS: User[] = [
-  { id: 'u_alisher', name: 'Алишер Каримов', initials: 'АК', color: '#3B82F6', role: 'admin', online: true, department: 'Информационных технологий (IT)' },
-  { id: 'u_dilnoza', name: 'Дилноза Пулатова', initials: 'ДП', color: '#EC4899', role: 'member', online: true, department: 'Отдел проектирования' },
-  { id: 'u_egor', name: 'Егор Соколов', initials: 'ЕС', color: '#F59E0B', role: 'member', online: false, department: 'Информационных технологий (IT)' },
-  { id: 'u_maria', name: 'Мария Ким', initials: 'МК', color: '#8B5CF6', role: 'member', online: true, department: 'Производственный отдел' },
-  { id: 'u_timur', name: 'Тимур Рахимов', initials: 'ТР', color: '#06B6D4', role: 'observer', online: false, department: 'Стратегического планирования' },
+  { id: 'u_alisher', name: 'Алишер Каримов', initials: 'АК', color: '#3B82F6', role: 'admin', online: true, department: 'IT-отдел' },
+  { id: 'u_dilnoza', name: 'Дилноза Пулатова', initials: 'ДП', color: '#EC4899', role: 'member', online: true, department: 'Проектирование' },
+  { id: 'u_egor', name: 'Егор Соколов', initials: 'ЕС', color: '#F59E0B', role: 'member', online: false, department: 'IT-отдел' },
+  { id: 'u_maria', name: 'Мария Ким', initials: 'МК', color: '#8B5CF6', role: 'member', online: true, department: 'Монтаж' },
+  { id: 'u_timur', name: 'Тимур Рахимов', initials: 'ТР', color: '#06B6D4', role: 'observer', online: false, department: 'ПТО' },
 ]
 
 const COMMENT_POOL = [
