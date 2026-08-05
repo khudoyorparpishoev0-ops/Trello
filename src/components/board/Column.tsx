@@ -1,14 +1,32 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { MoreHorizontal, Trash2, Plus } from 'lucide-react'
+import {
+  MoreHorizontal,
+  Trash2,
+  Plus,
+  Pencil,
+  Copy,
+  ArrowLeft,
+  ArrowRight,
+  Flag,
+  CalendarClock,
+  ArrowDownAZ,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import type { Card, Label, List, User } from '@/types'
 import { KanbanCard } from './KanbanCard'
 import { InlineComposer } from './InlineComposer'
 import { IconButton } from '@/components/ui/IconButton'
-import { Menu } from '@/components/ui/Menu'
+import { useBoard } from '@/store/boardStore'
 import { isDoneList, listAccentColor } from '@/lib/design'
 import { cn } from '@/lib/utils'
+
+const COLUMN_COLORS = [
+  '#EF4444', '#F97316', '#F59E0B', '#EAB308', '#22C55E', '#14B8A6',
+  '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#8E999D',
+]
 
 interface ColumnProps {
   list: List
@@ -36,7 +54,7 @@ export function Column({
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(list.title)
 
-  const accent = listAccentColor(list.title)
+  const accent = list.color || listAccentColor(list.title)
   const done = isDoneList(list.title)
   const overLimit = list.wipLimit !== undefined && cards.length > list.wipLimit
   const atLimit = list.wipLimit !== undefined && cards.length >= list.wipLimit
@@ -47,11 +65,15 @@ export function Column({
     else setTitle(list.title)
     setEditing(false)
   }
+  const startRename = () => {
+    setTitle(list.title)
+    setEditing(true)
+  }
 
   return (
-    <section className="flex h-full w-[86vw] max-w-[320px] shrink-0 flex-col rounded-card bg-surface-2 sm:w-[300px]">
+    <section className="flex h-full w-[86vw] max-w-[320px] shrink-0 flex-col rounded-card bg-col sm:w-[300px]">
       {/* Шапка колонки */}
-      <header className="flex items-center gap-2 px-3 pt-3 pb-2">
+      <header className="flex items-center gap-2 px-3 pb-2 pt-3">
         <span className="h-2 w-2 shrink-0 rounded-pill" style={{ background: accent }} aria-hidden />
         {editing ? (
           <input
@@ -71,10 +93,7 @@ export function Column({
         ) : (
           <h3
             className="min-w-0 flex-1 cursor-text truncate text-small font-semibold text-fg"
-            onDoubleClick={() => {
-              setTitle(list.title)
-              setEditing(true)
-            }}
+            onDoubleClick={startRename}
             title="Двойной клик — переименовать"
           >
             {list.title}
@@ -90,19 +109,7 @@ export function Column({
           {cards.length}
           {list.wipLimit !== undefined && `/${list.wipLimit}`}
         </span>
-        <Menu
-          align="right"
-          trigger={({ toggle, open }) => (
-            <IconButton
-              icon={MoreHorizontal}
-              label="Действия со списком"
-              size="sm"
-              active={open}
-              onClick={toggle}
-            />
-          )}
-          items={[{ label: 'Удалить список', icon: Trash2, danger: true, onClick: onDelete }]}
-        />
+        <ColumnMenu list={list} onRename={startRename} onDelete={onDelete} />
       </header>
 
       {atLimit && (
@@ -154,5 +161,112 @@ export function Column({
         />
       </div>
     </section>
+  )
+}
+
+/** Меню колонки (⋮): переименовать, сортировка, дублировать, перенос, цвет, удалить. */
+function ColumnMenu({ list, onRename, onDelete }: { list: List; onRename: () => void; onDelete: () => void }) {
+  const { state, actions } = useBoard()
+  const [open, setOpen] = useState(false)
+  const ids = state.board.listIds
+  const idx = ids.indexOf(list.id)
+  const close = () => setOpen(false)
+
+  return (
+    <div className="relative shrink-0">
+      <IconButton
+        icon={MoreHorizontal}
+        label="Действия со списком"
+        size="sm"
+        active={open}
+        onClick={() => setOpen((v) => !v)}
+      />
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={close} aria-hidden />
+          <div
+            role="menu"
+            className="absolute right-0 top-9 z-50 w-60 overflow-hidden rounded-modal border border-line bg-elevated py-1 shadow-md animate-scale-in"
+          >
+            <MItem icon={Pencil} label="Переименовать" onClick={() => { close(); onRename() }} />
+
+            <Divider />
+            <MItem icon={Flag} label="Сортировать по приоритету" onClick={() => { close(); actions.sortList(list.id, 'priority') }} />
+            <MItem icon={CalendarClock} label="Сортировать по сроку" onClick={() => { close(); actions.sortList(list.id, 'due') }} />
+            <MItem icon={ArrowDownAZ} label="Сортировать по названию" onClick={() => { close(); actions.sortList(list.id, 'title') }} />
+
+            <Divider />
+            <MItem icon={Copy} label="Дублировать" onClick={() => { close(); actions.duplicateList(list.id) }} />
+            <MItem icon={ArrowLeft} label="Переместить влево" disabled={idx <= 0} onClick={() => { close(); actions.moveList(list.id, -1) }} />
+            <MItem icon={ArrowRight} label="Переместить вправо" disabled={idx >= ids.length - 1} onClick={() => { close(); actions.moveList(list.id, 1) }} />
+
+            <Divider />
+            <div className="px-3 py-1.5">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">Цвет колонки</div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => actions.setListColor(list.id, '')}
+                  title="Авто"
+                  className="flex h-5 w-5 items-center justify-center rounded-pill border border-line-strong text-faint transition-colors hover:text-fg"
+                >
+                  <X size={11} strokeWidth={2.5} />
+                </button>
+                {COLUMN_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => actions.setListColor(list.id, c)}
+                    aria-label={`Цвет ${c}`}
+                    style={{ background: c }}
+                    className={cn(
+                      'h-5 w-5 rounded-pill transition-transform hover:scale-110',
+                      list.color === c && 'ring-2 ring-white ring-offset-2 ring-offset-elevated',
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <Divider />
+            <MItem icon={Trash2} label="Удалить список" danger onClick={() => { close(); onDelete() }} />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function Divider() {
+  return <div className="my-1 border-t border-line" />
+}
+
+function MItem({
+  icon: Icon,
+  label,
+  onClick,
+  danger,
+  disabled,
+}: {
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+  danger?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-small transition-colors disabled:opacity-40',
+        danger ? 'text-error hover:bg-error-soft' : 'text-fg hover:bg-hover',
+      )}
+    >
+      <Icon size={15} strokeWidth={2} className="shrink-0" />
+      {label}
+    </button>
   )
 }

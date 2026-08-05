@@ -34,6 +34,10 @@ type Action =
   | { type: 'ADD_LIST'; title: string }
   | { type: 'RENAME_LIST'; listId: string; title: string }
   | { type: 'DELETE_LIST'; listId: string }
+  | { type: 'SET_LIST_COLOR'; listId: string; color: string }
+  | { type: 'DUPLICATE_LIST'; listId: string }
+  | { type: 'SORT_LIST'; listId: string; by: 'priority' | 'due' | 'title' }
+  | { type: 'MOVE_LIST'; listId: string; dir: -1 | 1 }
   | { type: 'SWITCH_BOARD'; boardId: string }
   | { type: 'ADD_BOARD'; name: string }
   | { type: 'RENAME_BOARD'; boardId: string; name: string }
@@ -202,6 +206,80 @@ function appReducer(state: AppData, action: Action): AppData {
         }
       }
       return { ...state, lists: nextLists, cards: nextCards, boards: nextBoards }
+    }
+
+    case 'SET_LIST_COLOR': {
+      const l = state.lists[action.listId]
+      if (!l) return state
+      return { ...state, lists: { ...state.lists, [action.listId]: { ...l, color: action.color || undefined } } }
+    }
+
+    case 'DUPLICATE_LIST': {
+      const src = state.lists[action.listId]
+      const board = state.boards[state.activeBoardId]
+      if (!src || !board) return state
+      const newLid = uid('list')
+      const nextCards = { ...state.cards }
+      const newCardIds: string[] = []
+      for (const cid of src.cardIds) {
+        const c = state.cards[cid]
+        if (!c) continue
+        const nid = uid('card')
+        nextCards[nid] = {
+          ...c,
+          id: nid,
+          checklists: c.checklists.map((cl) => ({
+            ...cl,
+            id: uid('cl'),
+            items: cl.items.map((it) => ({ ...it, id: uid('i') })),
+          })),
+          comments: c.comments.map((cm) => ({ ...cm, id: uid('c') })),
+          attachments: c.attachments.map((a) => ({ ...a, id: uid('a') })),
+          createdAt: new Date().toISOString(),
+        }
+        newCardIds.push(nid)
+      }
+      const newList: List = { ...src, id: newLid, title: `${src.title} (копия)`, cardIds: newCardIds }
+      const idx = board.listIds.indexOf(action.listId)
+      const listIds = [...board.listIds]
+      listIds.splice(idx >= 0 ? idx + 1 : listIds.length, 0, newLid)
+      return {
+        ...state,
+        lists: { ...state.lists, [newLid]: newList },
+        cards: nextCards,
+        boards: { ...state.boards, [board.id]: { ...board, listIds } },
+      }
+    }
+
+    case 'SORT_LIST': {
+      const l = state.lists[action.listId]
+      if (!l) return state
+      const prio: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 }
+      const sorted = [...l.cardIds]
+        .map((id) => state.cards[id])
+        .filter((c): c is Card => Boolean(c))
+        .sort((a, b) => {
+          if (action.by === 'priority') return (prio[b.priority] ?? 0) - (prio[a.priority] ?? 0)
+          if (action.by === 'due') {
+            const av = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
+            const bv = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
+            return av - bv
+          }
+          return a.title.localeCompare(b.title, 'ru')
+        })
+        .map((c) => c.id)
+      return { ...state, lists: { ...state.lists, [action.listId]: { ...l, cardIds: sorted } } }
+    }
+
+    case 'MOVE_LIST': {
+      const board = state.boards[state.activeBoardId]
+      if (!board) return state
+      const idx = board.listIds.indexOf(action.listId)
+      const to = idx + action.dir
+      if (idx < 0 || to < 0 || to >= board.listIds.length) return state
+      const listIds = [...board.listIds]
+      ;[listIds[idx], listIds[to]] = [listIds[to], listIds[idx]]
+      return { ...state, boards: { ...state.boards, [board.id]: { ...board, listIds } } }
     }
 
     case 'SWITCH_BOARD':
@@ -411,6 +489,10 @@ export interface BoardActions {
   addList: (title: string) => void
   renameList: (listId: string, title: string) => void
   deleteList: (listId: string) => void
+  setListColor: (listId: string, color: string) => void
+  duplicateList: (listId: string) => void
+  sortList: (listId: string, by: 'priority' | 'due' | 'title') => void
+  moveList: (listId: string, dir: -1 | 1) => void
   switchBoard: (boardId: string) => void
   addBoard: (name: string) => void
   renameBoard: (boardId: string, name: string) => void
@@ -499,6 +581,10 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       addList: (title) => dispatch({ type: 'ADD_LIST', title }),
       renameList: (listId, title) => dispatch({ type: 'RENAME_LIST', listId, title }),
       deleteList: (listId) => dispatch({ type: 'DELETE_LIST', listId }),
+      setListColor: (listId, color) => dispatch({ type: 'SET_LIST_COLOR', listId, color }),
+      duplicateList: (listId) => dispatch({ type: 'DUPLICATE_LIST', listId }),
+      sortList: (listId, by) => dispatch({ type: 'SORT_LIST', listId, by }),
+      moveList: (listId, dir) => dispatch({ type: 'MOVE_LIST', listId, dir }),
       switchBoard: (boardId) => dispatch({ type: 'SWITCH_BOARD', boardId }),
       addBoard: (name) => dispatch({ type: 'ADD_BOARD', name }),
       renameBoard: (boardId, name) => dispatch({ type: 'RENAME_BOARD', boardId, name }),
