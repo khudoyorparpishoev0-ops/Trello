@@ -80,3 +80,23 @@ export function taskCode(id: string): string {
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   return 'IT-' + (100 + (h % 900))
 }
+
+/**
+ * «Таймер создания» карточки в виде часов: MM:SS → H:MM:SS → «Nд HH:MM».
+ * Тикает с момента создания; дата создания ставится один раз и не
+ * редактируется, поэтому значение всегда достоверно. `now` — для тестов.
+ */
+export function cardAge(iso?: string, now: number = Date.now()): string {
+  if (!iso) return '00:00'
+  const ms = now - new Date(iso).getTime()
+  if (Number.isNaN(ms) || ms < 0) return '00:00'
+  const total = Math.floor(ms / 1000)
+  const s = total % 60
+  const m = Math.floor(total / 60) % 60
+  const h = Math.floor(total / 3600) % 24
+  const d = Math.floor(total / 86400)
+  const p = (n: number) => String(n).padStart(2, '0')
+  if (d > 0) return `${d}д ${p(h)}:${p(m)}`
+  if (h > 0) return `${h}:${p(m)}:${p(s)}`
+  return `${p(m)}:${p(s)}`
+}

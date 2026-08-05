@@ -1,13 +1,32 @@
+import { useEffect, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { MessageSquare, Paperclip, CheckSquare, Calendar } from 'lucide-react'
+import { MessageSquare, Paperclip, CheckSquare, Calendar, Clock } from 'lucide-react'
 import type { Card, Label, User } from '@/types'
 import { AvatarStack } from '@/components/ui/Avatar'
 import { CountBadge, LabelChip, Pill } from '@/components/ui/Badge'
 import { PriorityFlag } from '@/components/ui/Priority'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { labelColor } from '@/lib/design'
-import { checklistProgress, cn, dueStatus, formatDate, taskCode } from '@/lib/utils'
+import { cardAge, checklistProgress, cn, dueStatus, formatDate, taskCode } from '@/lib/utils'
+
+/** Живой таймер «сколько прошло с создания». Дата создания не редактируется. */
+function CardTimer({ createdAt }: { createdAt: string }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <span
+      title={`Создано: ${formatDate(createdAt)} (не изменяется)`}
+      className="inline-flex items-center gap-1 rounded-pill bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-warning"
+    >
+      <Clock size={11} strokeWidth={2} />
+      {cardAge(createdAt, now)}
+    </span>
+  )
+}
 
 interface KanbanCardViewProps {
   card: Card
@@ -69,10 +88,13 @@ export function KanbanCardView({
         aria-hidden
       />
 
-      {/* Код задачи + приоритет */}
-      <div className="mb-2 flex items-center justify-between gap-2">
+      {/* Код задачи + таймер создания + приоритет */}
+      <div className="mb-2 flex items-center gap-2">
         <span className="font-mono text-[11px] font-semibold tracking-[0.02em] text-faint">{taskCode(card.id)}</span>
-        <PriorityFlag priority={card.priority} withLabel />
+        <CardTimer createdAt={card.createdAt} />
+        <span className="ml-auto shrink-0">
+          <PriorityFlag priority={card.priority} withLabel />
+        </span>
       </div>
 
       {/* Метки */}
