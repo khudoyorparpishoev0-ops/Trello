@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { MessageSquare, Paperclip, CheckSquare, Calendar, Clock } from 'lucide-react'
+import { MessageSquare, Paperclip, CheckSquare, Calendar, Clock, Plus, Repeat, Timer, BarChart3, Bell } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import type { Card, Label, User } from '@/types'
 import { AvatarStack } from '@/components/ui/Avatar'
@@ -9,6 +9,7 @@ import { PriorityFlag } from '@/components/ui/Priority'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { labelColor } from '@/lib/design'
 import { useNow } from '@/store/now'
+import { useStickerMenu } from './StickerMenu'
 import { checklistProgress, cn, deadlineCountdown, dueStatus, formatDate, taskCode } from '@/lib/utils'
 
 interface KanbanCardViewProps {
@@ -31,6 +32,7 @@ interface KanbanCardViewProps {
  */
 export function KanbanCardView({ card, users, labels, accent, isDone, dragging, overlay, onOpen }: KanbanCardViewProps) {
   const now = useNow()
+  const { openStickerMenu, openAssigneeMenu } = useStickerMenu()
   const { done, total } = checklistProgress(card.checklists)
   const pct = total > 0 ? Math.round((done / total) * 100) : 0
   const complete = total > 0 && done === total
@@ -52,8 +54,7 @@ export function KanbanCardView({ card, users, labels, accent, isDone, dragging, 
       }
     : { color: 'var(--muted)', background: 'var(--hover)', borderColor: 'var(--line)' }
 
-  const hasBottom =
-    !!card.dueDate || total > 0 || card.comments.length > 0 || card.attachments.length > 0 || assignees.length > 0
+  const st = card.stickers ?? {}
 
   return (
     <article
@@ -110,44 +111,84 @@ export function KanbanCardView({ card, users, labels, accent, isDone, dragging, 
         </div>
       )}
 
-      {/* Нижний ряд */}
-      {hasBottom && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 text-muted">
-            {card.dueDate && (
-              <span
-                className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] border px-[7px] py-[3px] text-[11px] font-semibold"
-                style={blockStyle}
-              >
-                <Calendar size={13} strokeWidth={2} />
-                {formatDate(card.dueDate)}
-              </span>
-            )}
-            {total > 0 && (
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1 text-[12px] font-medium tabular-nums',
-                  complete ? 'text-success' : 'text-muted',
-                )}
-              >
-                <CheckSquare size={14} strokeWidth={2} />
-                {done}/{total}
-              </span>
-            )}
-            {card.comments.length > 0 && (
-              <CountBadge icon={MessageSquare} count={card.comments.length} label="Комментарии" />
-            )}
-            {card.attachments.length > 0 && (
-              <CountBadge icon={Paperclip} count={card.attachments.length} label="Вложения" />
-            )}
-          </div>
-          {assignees.length > 0 && (
-            <div className="ml-auto flex pl-1.5">
-              <AvatarStack users={assignees} size="sm" max={3} />
-            </div>
+      {/* Нижний ряд — всегда виден: содержит быстрые кнопки «+» (ТЗ «Стикеры и исполнители» §1) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 text-muted">
+          {card.dueDate && (
+            <span
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] border px-[7px] py-[3px] text-[11px] font-semibold"
+              style={blockStyle}
+            >
+              <Calendar size={13} strokeWidth={2} />
+              {formatDate(card.dueDate)}
+            </span>
           )}
+          {total > 0 && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 text-[12px] font-medium tabular-nums',
+                complete ? 'text-success' : 'text-muted',
+              )}
+            >
+              <CheckSquare size={14} strokeWidth={2} />
+              {done}/{total}
+            </span>
+          )}
+          {card.comments.length > 0 && (
+            <CountBadge icon={MessageSquare} count={card.comments.length} label="Комментарии" />
+          )}
+          {card.attachments.length > 0 && (
+            <CountBadge icon={Paperclip} count={card.attachments.length} label="Вложения" />
+          )}
+
+          {/* Чипы стикеров (ТЗ §5) */}
+          {st.repeat && (
+            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] bg-brand-soft px-[7px] py-[3px] text-[11px] font-semibold text-brand">
+              <Repeat size={12} strokeWidth={2} /> каждую неделю
+            </span>
+          )}
+          {st.stopwatch && (
+            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] bg-hover px-[7px] py-[3px] font-mono text-[11px] font-semibold text-muted">
+              <Timer size={12} strokeWidth={2} /> 00:00
+            </span>
+          )}
+          {st.tracking && (
+            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] bg-hover px-[7px] py-[3px] text-[11px] font-semibold tabular-nums text-muted">
+              <BarChart3 size={12} strokeWidth={2} /> {card.spent ?? 0} ч / {card.planned ?? 8} ч
+            </span>
+          )}
+          {st.reminder && (
+            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] bg-warning-soft px-[7px] py-[3px] text-[11px] font-semibold text-warning">
+              <Bell size={12} strokeWidth={2} /> за 1 ч
+            </span>
+          )}
+
+          {/* «+» — меню «Добавить стикер» */}
+          <button
+            type="button"
+            title="Добавить стикер"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => openStickerMenu(card.id, e)}
+            className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] border border-dashed border-line-strong text-faint transition-colors hover:border-brand hover:text-brand"
+          >
+            <Plus size={11} strokeWidth={2.4} />
+          </button>
         </div>
-      )}
+
+        {/* Стопка аватаров + «+» — поповер «Исполнитель» */}
+        <div className="ml-auto flex items-center gap-1 pl-1.5">
+          {assignees.length > 0 && <AvatarStack users={assignees} size="sm" max={3} />}
+          <button
+            type="button"
+            title="Исполнители"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => openAssigneeMenu(card.id, e)}
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-pill border border-dashed border-line-strong text-faint transition-colors hover:border-brand hover:text-brand"
+          >
+            <Plus size={12} strokeWidth={2.2} />
+          </button>
+        </div>
+      </div>
     </article>
   )
 }

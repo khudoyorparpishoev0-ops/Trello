@@ -167,6 +167,7 @@ export function createSeedState(): AppData {
       comments: mkComments(1, ['u_dilnoza'], at),
       attachments: [],
       createdAt: at(-4),
+      stickers: { reminder: true },
     },
     {
       id: 'card_notif',
@@ -206,6 +207,9 @@ export function createSeedState(): AppData {
       comments: mkComments(5, ['u_maria', 'u_alisher', 'u_dilnoza'], at),
       attachments: mkAttachments(['card-spec.fig', 'states.png', 'grid-8px.png']),
       createdAt: at(-9),
+      stickers: { tracking: true, repeat: true },
+      spent: 5,
+      planned: 8,
     },
     {
       id: 'card_dnd',

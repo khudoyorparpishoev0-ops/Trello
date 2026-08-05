@@ -5,6 +5,7 @@ import { MobileTabBar } from '@/components/layout/MobileTabBar'
 import { TopBar } from '@/components/layout/TopBar'
 import { Board, type Filters } from '@/components/board/Board'
 import { CardDetailDrawer } from '@/components/board/CardDetailDrawer'
+import { StickerMenuProvider } from '@/components/board/StickerMenu'
 import { Dashboard } from '@/components/dashboard/Dashboard'
 import { Company } from '@/components/company/Company'
 import { Calendar } from '@/components/calendar/Calendar'
@@ -19,6 +20,7 @@ export default function App() {
   const [navOpen, setNavOpen] = useState(false)
 
   return (
+    <StickerMenuProvider>
     <div className="flex h-screen w-full overflow-hidden bg-bg text-fg">
       <Sidebar activeView={view} onSelectView={setView} />
       <MobileNav open={navOpen} onClose={() => setNavOpen(false)} activeView={view} onSelectView={setView} />
@@ -65,5 +67,6 @@ export default function App() {
       />
       <CardDetailDrawer cardId={openCardId} onClose={() => setOpenCardId(null)} />
     </div>
+    </StickerMenuProvider>
   )
 }

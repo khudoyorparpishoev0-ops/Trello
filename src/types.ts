@@ -67,6 +67,18 @@ export interface Attachment {
   size: number
 }
 
+/** Стикеры-переключатели карточки — быстрые свойства с доски (ТЗ «Стикеры и исполнители» §5). */
+export interface CardStickers {
+  /** Регулярная задача — «каждую неделю». */
+  repeat?: boolean
+  /** Секундомер — «00:00». */
+  stopwatch?: boolean
+  /** Таймтрекинг — «spent ч / planned ч». */
+  tracking?: boolean
+  /** Напоминание — «за 1 ч». */
+  reminder?: boolean
+}
+
 /** Карточка — единица задачи (ТЗ логики §5). */
 export interface Card {
   id: string
@@ -83,6 +95,12 @@ export interface Card {
   comments: Comment[]
   attachments: Attachment[]
   createdAt: string
+  /** Быстрые стикеры, навешиваемые прямо с доски (ТЗ «Стикеры и исполнители»). */
+  stickers?: CardStickers
+  /** Потрачено часов — для стикера «Таймтрекинг». */
+  spent?: number
+  /** Запланировано часов — для стикера «Таймтрекинг» (по умолчанию 8). */
+  planned?: number
 }
 
 /** Список / колонка-стадия (ТЗ логики §4.2). */
