@@ -10,7 +10,9 @@ import {
   UserPlus,
   Tag,
   X,
+  Send,
 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Drawer } from '@/components/ui/Drawer'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
@@ -305,52 +307,74 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
           </Field>
         )}
 
-        {/* Комментарии */}
-        <Field icon={MessageSquare} label="Комментарии" aside={String(card.comments.length)}>
-          <div className="flex items-start gap-2">
-            <Avatar user={state.users[state.currentUserId]} size="md" />
-            <div className="flex-1">
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Написать комментарий…"
-                rows={2}
-                className="w-full resize-none rounded-input border border-line bg-surface px-3 py-2 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
-              />
-              {comment.trim() && (
-                <div className="mt-2">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      actions.addComment(card.id, comment)
-                      setComment('')
-                    }}
-                  >
-                    Отправить
-                  </Button>
-                </div>
-              )}
+        {/* Чат задачи — переписка по задаче */}
+        <Field icon={MessageSquare} label="Чат задачи" aside={String(card.comments.length)}>
+          {card.comments.length === 0 ? (
+            <div className="rounded-input border border-dashed border-line py-6 text-center text-caption text-faint">
+              Пока нет сообщений. Начните обсуждение задачи.
             </div>
-          </div>
-
-          <div className="mt-4 flex flex-col gap-4">
-            {[...card.comments].reverse().map((c) => {
-              const author = state.users[c.authorId]
-              return (
-                <div key={c.id} className="flex items-start gap-2">
-                  {author && <Avatar user={author} size="md" />}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-small font-medium text-fg">{author?.name ?? '—'}</span>
-                      <span className="text-caption text-faint">{formatDate(c.createdAt)}</span>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {card.comments.map((c) => {
+                const author = state.users[c.authorId]
+                const mine = c.authorId === state.currentUserId
+                return (
+                  <div key={c.id} className={cn('flex items-end gap-2', mine && 'flex-row-reverse')}>
+                    {author && <Avatar user={author} size="sm" className="mb-4" />}
+                    <div className="min-w-0 max-w-[80%]">
+                      <div className={cn('mb-1 flex items-center gap-2 text-[11px]', mine && 'flex-row-reverse')}>
+                        <span className="font-medium text-muted">{mine ? 'Вы' : author?.name ?? '—'}</span>
+                        <span className="text-faint">{formatDate(c.createdAt)}</span>
+                      </div>
+                      <div
+                        className={cn(
+                          'whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-small leading-5',
+                          mine
+                            ? 'rounded-br-md bg-brand text-white'
+                            : 'rounded-bl-md border border-line bg-surface-2 text-fg',
+                        )}
+                      >
+                        {renderWithMentions(c.text, mine)}
+                      </div>
                     </div>
-                    <p className="mt-0.5 whitespace-pre-wrap text-small leading-5 text-muted">
-                      {c.text}
-                    </p>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
+          )}
+
+          {/* Ввод сообщения */}
+          <div className="mt-3 flex items-end gap-2">
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  if (comment.trim()) {
+                    actions.addComment(card.id, comment)
+                    setComment('')
+                  }
+                }
+              }}
+              placeholder="Написать сообщение…  (Enter — отправить)"
+              rows={1}
+              className="max-h-32 min-h-[40px] flex-1 resize-none rounded-[14px] border border-line bg-surface-2 px-3.5 py-2.5 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (comment.trim()) {
+                  actions.addComment(card.id, comment)
+                  setComment('')
+                }
+              }}
+              disabled={!comment.trim()}
+              aria-label="Отправить"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-pill bg-brand text-white transition-[filter] duration-150 hover:brightness-110 disabled:opacity-40"
+            >
+              <Send size={17} strokeWidth={2} />
+            </button>
           </div>
         </Field>
 
@@ -373,6 +397,19 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
         </div>
       </div>
     </Drawer>
+  )
+}
+
+/** Подсветка @упоминаний в тексте сообщения (спец §5). */
+function renderWithMentions(text: string, mine: boolean): ReactNode {
+  return text.split(/(@[\wА-Яа-яЁё.]+)/g).map((part, i) =>
+    /^@/.test(part) ? (
+      <span key={i} className={cn('font-semibold', mine ? 'text-white underline decoration-white/40' : 'text-brand')}>
+        {part}
+      </span>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
   )
 }
 
