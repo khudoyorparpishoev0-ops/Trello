@@ -95,7 +95,7 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} aria-hidden />
           <div
-            className="absolute left-0 top-[calc(100%+8px)] z-30 flex overflow-hidden rounded-modal border border-line-strong bg-surface"
+            className="absolute left-0 top-[calc(100%+8px)] z-30 flex max-w-[calc(100vw-40px)] flex-col overflow-hidden rounded-modal border border-line-strong bg-surface sm:flex-row"
             style={{ boxShadow: '0 20px 52px rgba(0,0,0,.5)' }}
           >
             {/* Календарь */}
@@ -155,17 +155,17 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
               </div>
             </div>
 
-            {/* Разделитель */}
-            <div className="w-px bg-line" />
+            {/* Разделитель (на телефоне попап складывается в колонку) */}
+            <div className="h-px w-full bg-line sm:h-auto sm:w-px" />
 
             {/* Время */}
             <div className="flex flex-col">
-              <div className="flex border-b border-line px-0 pb-1.5 pt-2.5">
+              <div className="flex justify-center border-b border-line px-0 pb-1.5 pt-2.5 sm:justify-start">
                 <div className="w-[52px] text-center text-[10.5px] font-semibold tracking-[0.06em] text-faint">ЧАС</div>
                 <div className="w-[52px] text-center text-[10.5px] font-semibold tracking-[0.06em] text-faint">МИН</div>
               </div>
-              <div className="flex p-1.5">
-                <div ref={hourRef} className="flex max-h-[236px] w-14 flex-col gap-0.5 overflow-y-auto no-scrollbar">
+              <div className="flex justify-center p-1.5 sm:justify-start">
+                <div ref={hourRef} className="flex max-h-[150px] w-14 flex-col gap-0.5 overflow-y-auto no-scrollbar sm:max-h-[236px]">
                   {HOURS.map((h) => (
                     <button
                       key={h}
@@ -180,7 +180,7 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
                     </button>
                   ))}
                 </div>
-                <div ref={minRef} className="flex max-h-[236px] w-14 flex-col gap-0.5 overflow-y-auto no-scrollbar">
+                <div ref={minRef} className="flex max-h-[150px] w-14 flex-col gap-0.5 overflow-y-auto no-scrollbar sm:max-h-[236px]">
                   {MINUTES.map((mi) => (
                     <button
                       key={mi}
