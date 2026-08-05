@@ -10,7 +10,7 @@ import http from 'node:http'
 import crypto from 'node:crypto'
 import pg from 'pg'
 import Redis from 'ioredis'
-import { initTelegram, getBotUsername, telegramEnabled } from './telegram.js'
+import { initTelegram, getBotUsername, telegramEnabled, notifyAssignments } from './telegram.js'
 
 const PORT = Number(process.env.PORT ?? 3000)
 const INVITE_CODE = process.env.INVITE_CODE ?? ''
@@ -404,18 +404,25 @@ async function handle(req, res) {
   }
 
   if (path === '/api/board') {
-    if (AUTH_REQUIRED && !(await currentUser(req))) return json(res, 401, { error: 'unauthorized' })
+    const actor = await currentUser(req)
+    if (AUTH_REQUIRED && !actor) return json(res, 401, { error: 'unauthorized' })
     if (req.method === 'GET') {
       const { rows } = await pool.query("SELECT data FROM board_state WHERE id = 'default'")
       return json(res, 200, rows[0] ? rows[0].data : null)
     }
     if (req.method === 'PUT' || req.method === 'POST') {
       const body = await readBody(req)
-      JSON.parse(body)
+      const newData = JSON.parse(body)
+      // Прежнее состояние — чтобы понять, кого только что назначили на задачи.
+      const prev = await pool.query("SELECT data FROM board_state WHERE id = 'default'")
       await pool.query(
         `INSERT INTO board_state (id, data) VALUES ('default', $1::jsonb)
          ON CONFLICT (id) DO UPDATE SET data = $1::jsonb, updated_at = now()`,
         [body],
+      )
+      // Уведомления о назначении — в фоне, ответ не задерживаем.
+      notifyAssignments(pool, prev.rows[0]?.data, newData, actor?.id, actor?.name).catch((e) =>
+        console.error('[tg] assign:', e.message),
       )
       return json(res, 200, { ok: true })
     }

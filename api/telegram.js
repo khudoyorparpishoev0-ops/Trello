@@ -143,6 +143,42 @@ async function alreadySent(pool, key) {
   return r.rows.length === 0 // если не вставилось — уже отправляли
 }
 
+// ——— Уведомления о назначении на задачу ———
+// Вызывается при сохранении доски: сравнивает старых и новых исполнителей
+// карточек и шлёт Telegram тем, кого только что добавили (у кого привязан бот).
+// Дедупликация — по разнице состояний: кто уже был в исполнителях, тому не шлём.
+export async function notifyAssignments(pool, oldData, newData, actorId, actorName) {
+  if (!TOKEN || !newData || !newData.cards) return
+  const oldCards = (oldData && oldData.cards) || {}
+  // Собираем всех новоназначенных: cardId → [userId] (исключая уже бывших и автора).
+  const targets = new Map() // userId → Set(cardTitle)
+  for (const c of Object.values(newData.cards)) {
+    const before = new Set(oldCards[c.id]?.assigneeIds ?? [])
+    for (const uid of c.assigneeIds ?? []) {
+      if (before.has(uid) || uid === actorId) continue
+      if (!targets.has(uid)) targets.set(uid, [])
+      targets.get(uid).push(c.title)
+    }
+  }
+  if (!targets.size) return
+  for (const [uid, titles] of targets) {
+    try {
+      const { rows } = await pool.query('SELECT tg_chat_id FROM users WHERE id = $1 AND tg_chat_id IS NOT NULL', [uid])
+      if (!rows.length) continue
+      const chatId = rows[0].tg_chat_id
+      const by = actorName ? `\nНазначил(а): ${escapeHtml(actorName)}` : ''
+      if (titles.length === 1) {
+        await send(chatId, `📌 <b>Вам назначена задача:</b>\n«${escapeHtml(titles[0])}»${by}`)
+      } else {
+        const list = titles.map((t) => `• ${escapeHtml(t)}`).join('\n')
+        await send(chatId, `📌 <b>Вам назначены задачи (${titles.length}):</b>\n${list}${by}`)
+      }
+    } catch (e) {
+      console.error('[tg] assign:', e.message)
+    }
+  }
+}
+
 // Собрать задачи с дедлайном на сегодня/завтра из состояния доски.
 function collectUpcoming(data) {
   if (!data || !data.cards || !data.lists) return []
