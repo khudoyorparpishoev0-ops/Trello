@@ -18,9 +18,9 @@ import { InlineComposer } from './InlineComposer'
 import { KanbanCardView } from './KanbanCard'
 import { useBoard } from '@/store/boardStore'
 import { isDoneList, listAccentColor } from '@/lib/design'
-import { dueStatus } from '@/lib/utils'
+import { cardMatchesFilters } from '@/lib/filterCards'
 import { boardBgStyle } from '@/lib/backgrounds'
-import type { Card, List } from '@/types'
+import type { Card } from '@/types'
 
 export interface Filters {
   query: string
@@ -35,7 +35,7 @@ interface BoardProps {
 
 export function Board({ filters, onOpenCard }: BoardProps) {
   const { state, actions } = useBoard()
-  const { board, lists, cards, users, labels, currentUserId } = state
+  const { board, lists, cards, users, labels } = state
   const [activeId, setActiveId] = useState<string | null>(null)
 
   // Мышь — тянем сразу (порог 6px, чтобы клик открывал карточку).
@@ -49,24 +49,6 @@ export function Board({ filters, onOpenCard }: BoardProps) {
   const findListId = (id: string): string | undefined => {
     if (lists[id]) return id
     return board.listIds.find((lid) => lists[lid].cardIds.includes(id))
-  }
-
-  const cardMatches = (card: Card, list: List): boolean => {
-    const q = filters.query.trim().toLowerCase()
-    if (q) {
-      const hay = [
-        card.title,
-        card.description ?? '',
-        ...card.labelIds.map((id) => labels[id]?.name ?? ''),
-        ...card.assigneeIds.map((id) => users[id]?.name ?? ''),
-      ]
-        .join(' ')
-        .toLowerCase()
-      if (!hay.includes(q)) return false
-    }
-    if (filters.onlyMine && !card.assigneeIds.includes(currentUserId)) return false
-    if (filters.overdue && dueStatus(card.dueDate, isDoneList(list.title)) !== 'overdue') return false
-    return true
   }
 
   const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id))
@@ -131,7 +113,7 @@ export function Board({ filters, onOpenCard }: BoardProps) {
           if (!list) return null
           const visible = list.cardIds
             .map((id) => cards[id])
-            .filter((c): c is Card => Boolean(c) && cardMatches(c, list))
+            .filter((c): c is Card => Boolean(c) && cardMatchesFilters(c, list, state, filters))
           return (
             <Column
               key={list.id}

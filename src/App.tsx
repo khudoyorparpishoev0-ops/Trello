@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { Sidebar, type AppView } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { MobileTabBar } from '@/components/layout/MobileTabBar'
-import { TopBar } from '@/components/layout/TopBar'
+import { TopBar, type BoardViewKind } from '@/components/layout/TopBar'
 import { Board, type Filters } from '@/components/board/Board'
+import { TableView } from '@/components/board/TableView'
+import { Timeline } from '@/components/board/Timeline'
 import { CardDetailDrawer } from '@/components/board/CardDetailDrawer'
 import { StickerMenuProvider } from '@/components/board/StickerMenu'
 import { Dashboard } from '@/components/dashboard/Dashboard'
@@ -18,6 +20,14 @@ export default function App() {
   const [filters, setFilters] = useState<Filters>({ query: '', onlyMine: false, overdue: false })
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [navOpen, setNavOpen] = useState(false)
+  // Вид доски в переключателе «Доска · Таймлайн · Календарь · Таблица»;
+  // «Календарь» открывает одноимённый раздел, остальные меняют вид на месте.
+  const [boardView, setBoardView] = useState<Exclude<BoardViewKind, 'calendar'>>('board')
+
+  const changeBoardView = (v: BoardViewKind) => {
+    if (v === 'calendar') setView('calendar')
+    else setBoardView(v)
+  }
 
   return (
     <StickerMenuProvider>
@@ -27,9 +37,17 @@ export default function App() {
       <div className="flex min-w-0 flex-1 flex-col pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0">
         {view === 'board' && (
           <>
-            <TopBar filters={filters} onFiltersChange={setFilters} onMenuClick={() => setNavOpen(true)} />
+            <TopBar
+              filters={filters}
+              onFiltersChange={setFilters}
+              onMenuClick={() => setNavOpen(true)}
+              boardView={boardView}
+              onBoardViewChange={changeBoardView}
+            />
             <main className="min-h-0 flex-1">
-              <Board filters={filters} onOpenCard={setOpenCardId} />
+              {boardView === 'board' && <Board filters={filters} onOpenCard={setOpenCardId} />}
+              {boardView === 'timeline' && <Timeline filters={filters} onOpenCard={setOpenCardId} />}
+              {boardView === 'table' && <TableView filters={filters} onOpenCard={setOpenCardId} />}
             </main>
           </>
         )}

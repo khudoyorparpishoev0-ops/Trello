@@ -22,15 +22,25 @@ import { IconButton } from '@/components/ui/IconButton'
 import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
-const VIEWS = ['Доска', 'Таймлайн', 'Календарь', 'Таблица'] as const
+/** Вид доски в сегментированном переключателе. */
+export type BoardViewKind = 'board' | 'timeline' | 'calendar' | 'table'
+
+const VIEWS: { k: BoardViewKind; label: string }[] = [
+  { k: 'board', label: 'Доска' },
+  { k: 'timeline', label: 'Таймлайн' },
+  { k: 'calendar', label: 'Календарь' },
+  { k: 'table', label: 'Таблица' },
+]
 
 interface TopBarProps {
   filters: Filters
   onFiltersChange: (f: Filters) => void
   onMenuClick: () => void
+  boardView: BoardViewKind
+  onBoardViewChange: (v: BoardViewKind) => void
 }
 
-export function TopBar({ filters, onFiltersChange, onMenuClick }: TopBarProps) {
+export function TopBar({ filters, onFiltersChange, onMenuClick, boardView, onBoardViewChange }: TopBarProps) {
   const { state, mode } = useBoard()
   const { theme, toggle } = useTheme()
   const [bgOpen, setBgOpen] = useState(false)
@@ -118,20 +128,19 @@ export function TopBar({ filters, onFiltersChange, onMenuClick }: TopBarProps) {
       {/* Нижний ряд: виды + фильтры (прокручивается по горизонтали на узких экранах) */}
       <div className="flex items-center gap-3 overflow-x-auto px-4 pb-3 no-scrollbar sm:px-6">
         <div className="flex shrink-0 items-center gap-1 rounded-btn bg-surface-2 p-1">
-          {VIEWS.map((v) => {
-            const active = v === 'Доска'
+          {VIEWS.map(({ k, label }) => {
+            const active = boardView === k
             return (
               <button
-                key={v}
+                key={k}
                 type="button"
-                disabled={!active}
-                title={active ? undefined : 'Скоро'}
+                onClick={() => onBoardViewChange(k)}
                 className={cn(
                   'rounded-[10px] px-3 py-1 text-caption font-medium transition-colors duration-200',
-                  active ? 'bg-bg text-fg shadow-sm' : 'text-faint hover:text-muted disabled:cursor-not-allowed',
+                  active ? 'bg-bg text-fg shadow-sm' : 'text-muted hover:text-fg',
                 )}
               >
-                {v}
+                {label}
               </button>
             )
           })}
