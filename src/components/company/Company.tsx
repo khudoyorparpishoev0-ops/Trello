@@ -68,7 +68,14 @@ function countdown(days: number) {
   return `через ${days} дн.`
 }
 function toUser(u: AuthUser): User {
-  return { id: u.id ?? u.login ?? u.name, name: u.name, initials: u.initials, color: u.color }
+  return {
+    id: u.id ?? u.login ?? u.name,
+    name: u.name,
+    initials: u.initials,
+    color: u.color,
+    avatar: u.avatar || undefined,
+    department: u.department || undefined,
+  }
 }
 
 interface CompanyProps {
@@ -93,10 +100,16 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
 
   useEffect(() => {
     let cancelled = false
-    void fetchUsers().then((u) => !cancelled && setUsers(u))
+    void fetchUsers().then((u) => {
+      if (cancelled) return
+      setUsers(u)
+      // Обновить фото/отделы этих сотрудников там, где они уже участники.
+      actions.syncUserProfiles(u.map(toUser))
+    })
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const birthdays = useMemo(

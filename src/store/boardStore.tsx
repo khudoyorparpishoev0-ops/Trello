@@ -11,7 +11,7 @@ import {
 } from 'react'
 import type { AppData, Board, BoardState, Card, Checklist, List, Priority, User } from '@/types'
 import { createSeedState, emptyBoard, DEFAULT_DEPARTMENTS } from '@/data/seed'
-import { loadBoard, saveBoard } from '@/lib/api'
+import { fetchUsers, loadBoard, saveBoard } from '@/lib/api'
 import { uid } from '@/lib/utils'
 
 /**
@@ -47,6 +47,7 @@ type Action =
   | { type: 'ARCHIVE_BOARD'; boardId: string }
   | { type: 'UNARCHIVE_BOARD'; boardId: string }
   | { type: 'SET_BOARD_MEMBERS'; boardId: string; members: User[] }
+  | { type: 'SYNC_USER_PROFILES'; users: User[] }
   | { type: 'SET_BOARD_BACKGROUND'; boardId: string; background: string }
   | { type: 'ADD_DEPARTMENT'; name: string }
   | { type: 'REMOVE_DEPARTMENT'; name: string }
@@ -389,13 +390,32 @@ function appReducer(state: AppData, action: Action): AppData {
       if (!b) return state
       const users = { ...state.users }
       for (const m of action.members) {
-        users[m.id] = { ...users[m.id], id: m.id, name: m.name, initials: m.initials, color: m.color }
+        // Переносим профиль целиком — включая avatar и department, иначе
+        // фото сотрудника терялось при добавлении в проект.
+        users[m.id] = { ...users[m.id], ...m }
       }
       return {
         ...state,
         users,
         boards: { ...state.boards, [action.boardId]: { ...b, memberIds: action.members.map((m) => m.id) } },
       }
+    }
+
+    case 'SYNC_USER_PROFILES': {
+      // Обновить профили уже известных пользователей (фото, имя, отдел) из
+      // /api/users — свежезагруженное фото появляется на досках без правок состава.
+      let changed = false
+      const users = { ...state.users }
+      for (const m of action.users) {
+        const cur = users[m.id]
+        if (!cur) continue
+        const next = { ...cur, ...m }
+        if (JSON.stringify(next) !== JSON.stringify(cur)) {
+          users[m.id] = next
+          changed = true
+        }
+      }
+      return changed ? { ...state, users } : state
     }
 
     case 'SET_BOARD_BACKGROUND': {
@@ -502,6 +522,8 @@ export interface BoardActions {
   archiveBoard: (boardId: string) => void
   unarchiveBoard: (boardId: string) => void
   setBoardMembers: (boardId: string, members: User[]) => void
+  /** Обновить профили известных пользователей (фото/имя/отдел) из /api/users. */
+  syncUserProfiles: (users: User[]) => void
   setBoardBackground: (boardId: string, background: string) => void
   addDepartment: (name: string) => void
   removeDepartment: (name: string) => void
@@ -561,6 +583,21 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       const wanted = new URLSearchParams(window.location.search).get('board')
       if (wanted && current.boards[wanted]) dispatch({ type: 'SWITCH_BOARD', boardId: wanted })
       loadedRef.current = true
+      // Подтянуть свежие профили (фото, отделы) зарегистрированных сотрудников.
+      void fetchUsers().then((list) => {
+        if (cancelled || !list.length) return
+        dispatch({
+          type: 'SYNC_USER_PROFILES',
+          users: list.map((u) => ({
+            id: u.id ?? u.login ?? u.name,
+            name: u.name,
+            initials: u.initials,
+            color: u.color,
+            avatar: u.avatar || undefined,
+            department: u.department || undefined,
+          })),
+        })
+      })
     })
     return () => {
       cancelled = true
@@ -605,6 +642,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       archiveBoard: (boardId) => dispatch({ type: 'ARCHIVE_BOARD', boardId }),
       unarchiveBoard: (boardId) => dispatch({ type: 'UNARCHIVE_BOARD', boardId }),
       setBoardMembers: (boardId, members) => dispatch({ type: 'SET_BOARD_MEMBERS', boardId, members }),
+      syncUserProfiles: (users) => dispatch({ type: 'SYNC_USER_PROFILES', users }),
       setBoardBackground: (boardId, background) => dispatch({ type: 'SET_BOARD_BACKGROUND', boardId, background }),
       addDepartment: (name) => dispatch({ type: 'ADD_DEPARTMENT', name }),
       removeDepartment: (name) => dispatch({ type: 'REMOVE_DEPARTMENT', name }),
