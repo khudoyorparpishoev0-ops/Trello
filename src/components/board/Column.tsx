@@ -12,6 +12,8 @@ import {
   Flag,
   CalendarClock,
   ArrowDownAZ,
+  CheckCircle2,
+  Circle,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -20,7 +22,7 @@ import { KanbanCard } from './KanbanCard'
 import { InlineComposer } from './InlineComposer'
 import { IconButton } from '@/components/ui/IconButton'
 import { useBoard } from '@/store/boardStore'
-import { isDoneList, listAccentColor } from '@/lib/design'
+import { isListDone, listAccentColor } from '@/lib/design'
 import { cn } from '@/lib/utils'
 
 const COLUMN_COLORS = [
@@ -56,7 +58,7 @@ export function Column({
   const [title, setTitle] = useState(list.title)
 
   const accent = list.color || listAccentColor(list.title)
-  const done = isDoneList(list.title)
+  const done = isListDone(list)
   const overLimit = list.wipLimit !== undefined && cards.length > list.wipLimit
   const atLimit = list.wipLimit !== undefined && cards.length >= list.wipLimit
 
@@ -195,6 +197,14 @@ function ColumnMenu({ list, onRename, onDelete }: { list: List; onRename: () => 
             <MItem icon={Flag} label="Сортировать по приоритету" onClick={() => { close(); actions.sortList(list.id, 'priority') }} />
             <MItem icon={CalendarClock} label="Сортировать по сроку" onClick={() => { close(); actions.sortList(list.id, 'due') }} />
             <MItem icon={ArrowDownAZ} label="Сортировать по названию" onClick={() => { close(); actions.sortList(list.id, 'title') }} />
+
+            <Divider />
+            {/* Системный статус: не зависит от названия списка (его можно переименовать). */}
+            <MItem
+              icon={isListDone(list) ? CheckCircle2 : Circle}
+              label={isListDone(list) ? 'Задачи выполнены ✓' : 'Считать задачи выполненными'}
+              onClick={() => { close(); actions.setListDone(list.id, !isListDone(list)) }}
+            />
 
             <Divider />
             <MItem icon={Copy} label="Дублировать" onClick={() => { close(); actions.duplicateList(list.id) }} />

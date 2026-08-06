@@ -5,7 +5,7 @@ import { useBoard } from '@/store/boardStore'
 import { useTheme } from '@/store/theme'
 import { IconButton } from '@/components/ui/IconButton'
 import { Avatar, AvatarStack } from '@/components/ui/Avatar'
-import { isDoneList, listAccentColor } from '@/lib/design'
+import { isListDone, listAccentColor } from '@/lib/design'
 import { cn, dueStatus, formatDate, taskCode } from '@/lib/utils'
 
 interface DashboardProps {
@@ -63,11 +63,11 @@ export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
     let done = 0
     let overdue = 0
     const load: Record<string, number> = {}
-    const deadlines: { id: string; title: string; due: string; overdue: boolean; accent: string; assignees: User[] }[] = []
+    const deadlines: { id: string; code?: number; title: string; due: string; overdue: boolean; accent: string; assignees: User[] }[] = []
     for (const lid of board.listIds) {
       const l = lists[lid]
       if (!l) continue
-      const isDone = isDoneList(l.title)
+      const isDone = isListDone(l)
       const accent = listAccentColor(l.title)
       for (const cid of l.cardIds) {
         const c = cards[cid]
@@ -83,6 +83,7 @@ export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
         if (c.dueDate) {
           deadlines.push({
             id: c.id,
+            code: c.code,
             title: c.title,
             due: c.dueDate,
             overdue: isOverdue,
@@ -208,7 +209,7 @@ export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
                       className="flex items-center gap-3 rounded-[12px] px-2.5 py-[11px] text-left transition-colors hover:bg-hover"
                     >
                       <span className="h-2 w-2 shrink-0 rounded-pill" style={{ background: d.accent }} />
-                      <span className="shrink-0 font-mono text-[11px] font-semibold text-faint">{taskCode(d.id)}</span>
+                      <span className="shrink-0 font-mono text-[11px] font-semibold text-faint">{taskCode({ id: d.id, code: d.code })}</span>
                       <span className="min-w-0 flex-1 truncate text-small text-fg">{d.title}</span>
                       <AvatarStack users={d.assignees} size="xs" max={3} />
                       <span className={cn('shrink-0 rounded-pill px-2 py-0.5 text-[11px] font-medium tabular-nums', d.overdue ? 'bg-error-soft text-error' : 'bg-hover text-muted')}>

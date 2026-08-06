@@ -1,0 +1,158 @@
+/**
+ * Тесты серверных защит: проверка полезной нагрузки доски, снимки истории,
+ * ограничение попыток входа. Запуск: npm run test:api
+ */
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { validateBoardPayload, cardCount, shouldSnapshot } from '../../api/boardGuard.js'
+import {
+  limiterKey,
+  registerFailure,
+  registerSuccess,
+  retryAfter,
+  _reset,
+  LIMITS,
+} from '../../api/rateLimit.js'
+
+// ——— Проверка состояния доски (P0: защита от затирания) ———
+
+const validBoard = () => ({
+  workspace: { id: 'w', name: 'IT-HONA', boards: [] },
+  users: {},
+  currentUserId: 'u1',
+  boards: { b1: { id: 'b1', name: 'Проект', visibility: 'private', listIds: ['l1'], memberIds: [] } },
+  boardOrder: ['b1'],
+  activeBoardId: 'b1',
+  lists: { l1: { id: 'l1', title: 'To Do', cardIds: [] } },
+  cards: {},
+  labels: {},
+  departments: [],
+})
+
+test('валидное состояние доски принимается', () => {
+  assert.equal(validateBoardPayload(validBoard()).ok, true)
+})
+
+test('пустой объект {} отклоняется — иначе затирал доску всей компании', () => {
+  assert.equal(validateBoardPayload({}).ok, false)
+})
+
+for (const bad of [null, undefined, 'строка', 42, true, [], [1, 2, 3]]) {
+  test(`не-объект (${JSON.stringify(bad) ?? 'undefined'}) отклоняется`, () => {
+    assert.equal(validateBoardPayload(bad).ok, false)
+  })
+}
+
+test('состояние без досок отклоняется', () => {
+  const d = validBoard()
+  d.boards = {}
+  assert.equal(validateBoardPayload(d).ok, false)
+})
+
+for (const key of ['boards', 'lists', 'cards']) {
+  test(`поле «${key}» неверного типа отклоняется`, () => {
+    const d = validBoard()
+    // @ts-expect-error — проверяем защиту от неверного типа
+    d[key] = []
+    const r = validateBoardPayload(d)
+    assert.equal(r.ok, false)
+    assert.match(r.detail, new RegExp(key))
+  })
+}
+
+test('boardOrder обязан быть массивом', () => {
+  const d = validBoard()
+  // @ts-expect-error — намеренно неверный тип
+  d.boardOrder = {}
+  assert.equal(validateBoardPayload(d).ok, false)
+})
+
+test('activeBoardId обязателен', () => {
+  const d = validBoard()
+  d.activeBoardId = ''
+  assert.equal(validateBoardPayload(d).ok, false)
+})
+
+test('лишние (неизвестные) поля не мешают сохранению', () => {
+  const d = { ...validBoard(), somethingNew: { a: 1 } }
+  assert.equal(validateBoardPayload(d).ok, true)
+})
+
+// ——— Снимки истории ———
+
+const withCards = (n: number) => {
+  const d = validBoard()
+  for (let i = 0; i < n; i++) d.cards[`c${i}`] = { id: `c${i}` }
+  return d
+}
+
+test('cardCount считает карточки и не падает на мусоре', () => {
+  assert.equal(cardCount(withCards(7)), 7)
+  assert.equal(cardCount(null), 0)
+  assert.equal(cardCount('строка'), 0)
+})
+
+test('снимок обязателен при заметной потере карточек (защита от стирания)', () => {
+  const now = Date.now()
+  // 100 → 3 карточки, снимок только что делался — всё равно снимаем
+  assert.equal(shouldSnapshot(withCards(100), withCards(3), new Date(now).toISOString(), now), true)
+})
+
+test('обычное редактирование не плодит снимки чаще раза в 5 минут', () => {
+  const now = Date.now()
+  const recent = new Date(now - 60_000).toISOString()
+  assert.equal(shouldSnapshot(withCards(50), withCards(51), recent, now), false)
+})
+
+test('по истечении интервала снимок делается', () => {
+  const now = Date.now()
+  const old = new Date(now - 10 * 60_000).toISOString()
+  assert.equal(shouldSnapshot(withCards(50), withCards(51), old, now), true)
+})
+
+test('без предыдущего состояния снимок не нужен', () => {
+  assert.equal(shouldSnapshot(null, withCards(5), null), false)
+})
+
+// ——— Ограничение попыток входа (защита от перебора) ———
+
+test('после серии неудач вход временно закрывается', () => {
+  _reset()
+  const key = limiterKey('10.0.0.1', 'admin')
+  assert.equal(retryAfter(key), 0)
+  for (let i = 0; i < LIMITS.MAX_FAILS - 1; i++) registerFailure(key)
+  assert.equal(retryAfter(key), 0, 'до порога вход открыт')
+  registerFailure(key)
+  assert.ok(retryAfter(key) > 0, 'после порога — блокировка')
+})
+
+test('успешный вход сбрасывает счётчик', () => {
+  _reset()
+  const key = limiterKey('10.0.0.2', 'admin')
+  for (let i = 0; i < 5; i++) registerFailure(key)
+  registerSuccess(key)
+  for (let i = 0; i < LIMITS.MAX_FAILS - 1; i++) registerFailure(key)
+  assert.equal(retryAfter(key), 0)
+})
+
+test('блокировка не задевает другого пользователя и другой IP', () => {
+  _reset()
+  const victim = limiterKey('10.0.0.3', 'admin')
+  for (let i = 0; i < LIMITS.MAX_FAILS; i++) registerFailure(victim)
+  assert.ok(retryAfter(victim) > 0)
+  assert.equal(retryAfter(limiterKey('10.0.0.4', 'admin')), 0, 'другой IP не заблокирован')
+  assert.equal(retryAfter(limiterKey('10.0.0.3', 'egor')), 0, 'другой логин не заблокирован')
+})
+
+test('ключ ограничения не зависит от регистра логина', () => {
+  assert.equal(limiterKey('1.1.1.1', 'Admin'), limiterKey('1.1.1.1', 'admin'))
+})
+
+test('блокировка снимается по истечении срока', () => {
+  _reset()
+  const key = limiterKey('10.0.0.5', 'admin')
+  const t0 = Date.now()
+  for (let i = 0; i < LIMITS.MAX_FAILS; i++) registerFailure(key, t0)
+  assert.ok(retryAfter(key, t0) > 0)
+  assert.equal(retryAfter(key, t0 + LIMITS.BLOCK_MS + 1000), 0)
+})

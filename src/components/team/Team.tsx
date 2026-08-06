@@ -4,7 +4,7 @@ import { useBoard } from '@/store/boardStore'
 import { useTheme } from '@/store/theme'
 import { Avatar } from '@/components/ui/Avatar'
 import { IconButton } from '@/components/ui/IconButton'
-import { isDoneList } from '@/lib/design'
+import { isListDone } from '@/lib/design'
 import { dueStatus } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
@@ -38,7 +38,7 @@ export function Team({ onMenuClick }: TeamProps) {
         for (const c of Object.values(state.cards)) {
           if (!c.assigneeIds.includes(u.id)) continue
           const list = state.lists[listOf[c.id]]
-          const done = list ? isDoneList(list.title) : false
+          const done = list ? isListDone(list) : false
           if (done) continue
           active++
           if (dueStatus(c.dueDate, done) === 'overdue') overdue++

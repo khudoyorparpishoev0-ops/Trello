@@ -17,7 +17,7 @@ import { Column } from './Column'
 import { InlineComposer } from './InlineComposer'
 import { KanbanCardView } from './KanbanCard'
 import { useBoard } from '@/store/boardStore'
-import { isDoneList, listAccentColor } from '@/lib/design'
+import { isListDone, listAccentColor } from '@/lib/design'
 import { cardMatchesFilters } from '@/lib/filterCards'
 import { boardBgStyle } from '@/lib/backgrounds'
 import type { Card } from '@/types'
@@ -149,7 +149,7 @@ export function Board({ filters, onOpenCard }: BoardProps) {
             users={users}
             labels={labels}
             accent={listAccentColor(activeList.title)}
-            isDone={isDoneList(activeList.title)}
+            isDone={isListDone(activeList)}
             overlay
           />
         ) : null}

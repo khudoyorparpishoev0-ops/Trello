@@ -4,7 +4,7 @@ import type { Filters } from './Board'
 import { AvatarStack } from '@/components/ui/Avatar'
 import { PriorityFlag } from '@/components/ui/Priority'
 import { useBoard } from '@/store/boardStore'
-import { isDoneList, listAccentColor } from '@/lib/design'
+import { isListDone, listAccentColor } from '@/lib/design'
 import { cardMatchesFilters } from '@/lib/filterCards'
 import { checklistProgress, cn, dueStatus, formatDate, taskCode } from '@/lib/utils'
 
@@ -25,7 +25,7 @@ export function TableView({ filters, onOpenCard }: TableViewProps) {
       const l = state.lists[lid]
       if (!l) continue
       const accent = l.color || listAccentColor(l.title)
-      const done = isDoneList(l.title)
+      const done = isListDone(l)
       for (const cid of l.cardIds) {
         const c = state.cards[cid]
         if (!c || !cardMatchesFilters(c, l, state, filters)) continue
@@ -76,7 +76,7 @@ export function TableView({ filters, onOpenCard }: TableViewProps) {
                   onClick={() => onOpenCard(cardId)}
                   className={cn('grid w-full items-center gap-3 border-t border-line px-5 py-3 text-left transition-colors hover:bg-hover', COLS)}
                 >
-                  <span className="font-mono text-[11px] font-semibold tracking-[0.02em] text-faint">{taskCode(cardId)}</span>
+                  <span className="font-mono text-[11px] font-semibold tracking-[0.02em] text-faint">{taskCode(c)}</span>
                   <span className="min-w-0">
                     <span className={cn('block truncate text-small font-medium', done ? 'text-muted line-through' : 'text-fg')}>
                       {c.title}

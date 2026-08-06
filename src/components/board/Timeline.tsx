@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { Filters } from './Board'
 import { useBoard } from '@/store/boardStore'
-import { isDoneList, listAccentColor } from '@/lib/design'
+import { isListDone, listAccentColor } from '@/lib/design'
 import { cardMatchesFilters } from '@/lib/filterCards'
 import { cn, taskCode } from '@/lib/utils'
 
@@ -30,6 +30,7 @@ export function Timeline({ filters, onOpenCard }: TimelineProps) {
   const { rows, hidden } = useMemo(() => {
     const out: {
       cardId: string
+      code?: number
       title: string
       accent: string
       overdue: boolean
@@ -43,7 +44,7 @@ export function Timeline({ filters, onOpenCard }: TimelineProps) {
       const l = state.lists[lid]
       if (!l) continue
       const accent = l.color || listAccentColor(l.title)
-      const done = isDoneList(l.title)
+      const done = isListDone(l)
       for (const cid of l.cardIds) {
         const c = state.cards[cid]
         if (!c || !cardMatchesFilters(c, l, state, filters)) continue
@@ -61,7 +62,7 @@ export function Timeline({ filters, onOpenCard }: TimelineProps) {
           hiddenCount++
           continue
         }
-        out.push({ cardId: cid, title: c.title, accent, overdue: !done && end < now, done, startIdx, endIdx: Math.max(endIdx, startIdx) })
+        out.push({ cardId: cid, code: c.code, title: c.title, accent, overdue: !done && end < now, done, startIdx, endIdx: Math.max(endIdx, startIdx) })
       }
     }
     return { rows: out, hidden: hiddenCount }
@@ -127,7 +128,7 @@ export function Timeline({ filters, onOpenCard }: TimelineProps) {
               style={{ width: LEFT_W }}
             >
               <span className="h-2 w-2 shrink-0 rounded-pill" style={{ background: r.accent }} aria-hidden />
-              <span className="shrink-0 font-mono text-[10.5px] font-semibold text-faint">{taskCode(r.cardId)}</span>
+              <span className="shrink-0 font-mono text-[10.5px] font-semibold text-faint">{taskCode({ id: r.cardId, code: r.code })}</span>
               <span className={cn('min-w-0 truncate text-[13px] font-medium', r.done ? 'text-muted line-through' : 'text-fg')}>
                 {r.title}
               </span>

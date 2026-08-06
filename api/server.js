@@ -11,6 +11,8 @@ import crypto from 'node:crypto'
 import pg from 'pg'
 import Redis from 'ioredis'
 import { initTelegram, getBotUsername, telegramEnabled, notifyAssignments, notifyDueChanges } from './telegram.js'
+import { validateBoardPayload, shouldSnapshot } from './boardGuard.js'
+import { limiterKey, retryAfter, registerFailure, registerSuccess } from './rateLimit.js'
 
 const PORT = Number(process.env.PORT ?? 3000)
 const INVITE_CODE = process.env.INVITE_CODE ?? ''
@@ -59,6 +61,15 @@ async function ensureSchema() {
   // Журнал отправленных уведомлений — защита от повторов (день рождения/дедлайн).
   await pool.query(`CREATE TABLE IF NOT EXISTS notif_log (
     key text PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now())`)
+  // Снимки доски перед перезаписью — страховка от потери данных.
+  await pool.query(`CREATE TABLE IF NOT EXISTS board_history (
+    id bigserial PRIMARY KEY,
+    board_id text NOT NULL,
+    data jsonb NOT NULL,
+    cards int,
+    actor text,
+    created_at timestamptz NOT NULL DEFAULT now())`)
+  await pool.query(`CREATE INDEX IF NOT EXISTS board_history_created_idx ON board_history (board_id, created_at DESC)`)
 }
 
 async function initWithRetry() {
@@ -135,11 +146,26 @@ function colorFor(s) {
   return PALETTE[h % PALETTE.length]
 }
 
+/** IP клиента с учётом обратного прокси (Caddy передаёт X-Forwarded-For). */
+function clientIp(req) {
+  const fwd = String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim()
+  return fwd || req.socket?.remoteAddress || 'unknown'
+}
+
+// Куки помечаем Secure, когда сайт открыт по HTTPS: без флага браузер отдаёт
+// сессию и по обычному HTTP. SITE_ADDRESS без схемы «:80» означает работу по IP.
+const SITE_ADDRESS = process.env.SITE_ADDRESS ?? ''
+const HTTPS_SITE = SITE_ADDRESS.length > 0 && !SITE_ADDRESS.startsWith(':') && !SITE_ADDRESS.startsWith('http://')
+
+function sessionCookie(token, maxAge = SESSION_DAYS * 24 * 3600) {
+  return `sid=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${HTTPS_SITE ? '; Secure' : ''}`
+}
+
 // ——— Сессии / текущий пользователь ———
 async function newSession(userId) {
   const token = crypto.randomBytes(24).toString('hex')
   await pool.query('INSERT INTO sessions (token, user_id) VALUES ($1, $2)', [token, userId])
-  return `sid=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_DAYS * 24 * 3600}`
+  return sessionCookie(token)
 }
 async function currentUser(req) {
   const sid = parseCookies(req).sid
@@ -348,18 +374,32 @@ async function handle(req, res) {
     try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
     const login = String(b.login ?? '').trim()
     const password = String(b.password ?? '')
+
+    // Защита от перебора пароля: после серии неудач вход временно закрыт.
+    const key = limiterKey(clientIp(req), login)
+    const wait = retryAfter(key)
+    if (wait > 0) {
+      return json(res, 429, { error: 'too_many_attempts', retryAfter: wait }, { 'Retry-After': String(wait) })
+    }
+
     if (ACCOUNTS) {
       // Вход без учёта регистра логина: «Khudoyor» == «khudoyor».
       const { rows } = await pool.query('SELECT * FROM users WHERE lower(login) = lower($1)', [login])
       const u = rows[0]
-      if (!u || !verifyPassword(password, u.pass_salt, u.pass_hash)) return json(res, 401, { error: 'invalid_credentials' })
+      if (!u || !verifyPassword(password, u.pass_salt, u.pass_hash)) {
+        registerFailure(key)
+        return json(res, 401, { error: 'invalid_credentials' })
+      }
+      registerSuccess(key)
       const cookie = await newSession(u.id)
       return json(res, 200, { ok: true, user: publicUser(u) }, { 'Set-Cookie': cookie })
     }
     // Общий вход
     if (!safeEqual(login.toLowerCase(), AUTH_LOGIN.toLowerCase()) || !safeEqual(password, AUTH_PASSWORD)) {
+      registerFailure(key)
       return json(res, 401, { error: 'invalid_credentials' })
     }
+    registerSuccess(key)
     const cookie = await newSession(null)
     return json(res, 200, { ok: true }, { 'Set-Cookie': cookie })
   }
@@ -367,7 +407,7 @@ async function handle(req, res) {
   if (path === '/api/auth/logout' && req.method === 'POST') {
     const sid = parseCookies(req).sid
     if (sid) await pool.query('DELETE FROM sessions WHERE token = $1', [sid]).catch(() => {})
-    return json(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0' })
+    return json(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie('', 0) })
   }
 
   // ——— Telegram ———
@@ -412,16 +452,46 @@ async function handle(req, res) {
     }
     if (req.method === 'PUT' || req.method === 'POST') {
       const body = await readBody(req)
-      const newData = JSON.parse(body)
-      // Прежнее состояние — чтобы понять, кого только что назначили на задачи.
+      let newData
+      try {
+        newData = JSON.parse(body)
+      } catch {
+        return json(res, 400, { error: 'bad_request', detail: 'тело запроса не является JSON' })
+      }
+      // Структурная проверка: неверный блоб затирал доску всей компании.
+      const check = validateBoardPayload(newData)
+      if (!check.ok) return json(res, 422, { error: check.error, detail: check.detail })
+
+      // Прежнее состояние — для уведомлений и для снимка истории.
       const prev = await pool.query("SELECT data FROM board_state WHERE id = 'default'")
+      const prevData = prev.rows[0]?.data
+
+      // Снимок предыдущего состояния (разреженно; при заметной потере карточек — всегда).
+      try {
+        const last = await pool.query(
+          "SELECT created_at FROM board_history WHERE board_id = 'default' ORDER BY created_at DESC LIMIT 1",
+        )
+        if (shouldSnapshot(prevData, newData, last.rows[0]?.created_at)) {
+          await pool.query(
+            `INSERT INTO board_history (board_id, data, cards, actor) VALUES ('default', $1::jsonb, $2, $3)`,
+            [JSON.stringify(prevData), Object.keys(prevData?.cards ?? {}).length, actor?.name ?? null],
+          )
+          // Держим последние 50 снимков.
+          await pool.query(
+            `DELETE FROM board_history WHERE board_id = 'default' AND id NOT IN (
+               SELECT id FROM board_history WHERE board_id = 'default' ORDER BY created_at DESC LIMIT 50)`,
+          )
+        }
+      } catch (e) {
+        console.error('[api] снимок истории не сохранён:', e.message)
+      }
+
       await pool.query(
         `INSERT INTO board_state (id, data) VALUES ('default', $1::jsonb)
          ON CONFLICT (id) DO UPDATE SET data = $1::jsonb, updated_at = now()`,
         [body],
       )
       // Уведомления (назначение + смена срока) — в фоне, ответ не задерживаем.
-      const prevData = prev.rows[0]?.data
       notifyAssignments(pool, prevData, newData, actor?.id, actor?.name).catch((e) =>
         console.error('[tg] assign:', e.message),
       )

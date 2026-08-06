@@ -76,7 +76,7 @@ export function KanbanCardView({ card, users, labels, accent, isDone, dragging, 
 
       {/* Шапка: код · таймер до дедлайна · приоритет — в одну строку */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-[11px] font-semibold tracking-[0.02em] text-faint">{taskCode(card.id)}</span>
+        <span className="font-mono text-[11px] font-semibold tracking-[0.02em] text-faint">{taskCode(card)}</span>
         {card.dueDate && (
           <span
             className="inline-flex items-center gap-1 whitespace-nowrap rounded-[7px] px-[7px] py-0.5 font-mono text-[11px] font-semibold"

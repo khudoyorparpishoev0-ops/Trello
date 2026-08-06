@@ -53,7 +53,21 @@ export function listAccentColor(title: string): string {
   return '#16A34A' // brand
 }
 
-/** Является ли список финальной стадией («Готово»). */
+/**
+ * Эвристика по названию — только запасной вариант для списков, у которых не
+ * задан системный признак `done` (данные, созданные до его появления).
+ * Новую логику на неё завязывать нельзя: пользователь вправе назвать список как
+ * угодно. Используйте `isListDone(list)`.
+ */
 export function isDoneList(title: string): boolean {
-  return /(done|готов|заверш|выполнен)/.test(title.toLowerCase())
+  return /(done|готов|заверш|выполнен|архив|archive)/.test(title.toLowerCase())
+}
+
+/**
+ * Считаются ли задачи списка выполненными (не входят в активную статистику).
+ * Источник истины — явный флаг `done` у списка; название используется лишь как
+ * запасной вариант для старых данных.
+ */
+export function isListDone(list: { title: string; done?: boolean }): boolean {
+  return list.done ?? isDoneList(list.title)
 }

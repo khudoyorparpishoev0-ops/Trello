@@ -5,6 +5,19 @@
 {$SITE_ADDRESS} {
 	encode gzip zstd
 
+	# Заголовки безопасности.
+	# frame-ancestors + X-Frame-Options — защита от кликджекинга (встраивания
+	# приложения в чужой iframe). CSP разрешает шрифты Google и data-URL картинок
+	# (аватары профиля хранятся именно так).
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		-Server
+	}
+
 	# API → сервис api:3000
 	handle /api/* {
 		reverse_proxy api:3000

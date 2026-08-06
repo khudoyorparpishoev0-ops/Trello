@@ -6,7 +6,7 @@ import { useTheme } from '@/store/theme'
 import { IconButton } from '@/components/ui/IconButton'
 import { Avatar } from '@/components/ui/Avatar'
 import { PriorityFlag } from '@/components/ui/Priority'
-import { isDoneList } from '@/lib/design'
+import { isListDone } from '@/lib/design'
 import { cn, dueStatus, formatDate } from '@/lib/utils'
 
 const DAY = 86_400_000
@@ -24,7 +24,7 @@ export function Reports({ onMenuClick, onOpenCard }: ReportsProps) {
     const { board, lists, cards, users } = state
     const doneByCard: Record<string, boolean> = {}
     for (const lid of board.listIds) {
-      const done = isDoneList(lists[lid].title)
+      const done = isListDone(lists[lid])
       for (const cid of lists[lid].cardIds) doneByCard[cid] = done
     }
     const all = Object.values(cards)

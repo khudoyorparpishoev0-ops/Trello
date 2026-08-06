@@ -117,9 +117,52 @@ export function checklistProgress(
   return { done, total }
 }
 
-/** Стабильный код задачи вида IT-118 (выводится из id карточки). */
-export function taskCode(id: string): string {
+/**
+ * Код задачи вида IT-118.
+ *
+ * Источник истины — постоянный номер `card.code`, присвоенный при создании:
+ * он уникален. Хеш от id остаётся лишь запасным вариантом для данных, где
+ * номер ещё не проставлен (его пространство — 900 значений, поэтому у разных
+ * задач коды могли совпадать).
+ */
+export function taskCode(card: string | { id: string; code?: number }): string {
+  if (typeof card !== 'string' && typeof card.code === 'number') return `IT-${card.code}`
+  const id = typeof card === 'string' ? card : card.id
   let h = 0
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   return 'IT-' + (100 + (h % 900))
+}
+
+/** Наибольший занятый номер задачи (для выдачи следующего). */
+export function maxTaskCode(cards: Record<string, { code?: number }>): number {
+  let max = 100
+  for (const c of Object.values(cards)) {
+    if (typeof c.code === 'number' && c.code > max) max = c.code
+  }
+  return max
+}
+
+/** Следующий свободный номер задачи. Номера не переиспользуются. */
+export function nextTaskCode(cards: Record<string, { code?: number }>): number {
+  return maxTaskCode(cards) + 1
+}
+
+/**
+ * Проставить постоянные номера задачам, созданным до появления поля `code`.
+ * Порядок детерминированный (по дате создания, затем по id), поэтому разные
+ * клиенты присвоят одинаковые номера и расхождений между ними не возникнет.
+ */
+export function backfillTaskCodes<T extends { id: string; createdAt?: string; code?: number }>(
+  cards: Record<string, T>,
+): Record<string, T> {
+  const missing = Object.values(cards).filter((c) => typeof c.code !== 'number')
+  if (!missing.length) return cards
+  missing.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? '') || a.id.localeCompare(b.id))
+  const next = { ...cards }
+  let n = maxTaskCode(cards)
+  for (const c of missing) {
+    n += 1
+    next[c.id] = { ...c, code: n }
+  }
+  return next
 }

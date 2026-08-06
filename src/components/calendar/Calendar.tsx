@@ -7,7 +7,7 @@ import { fetchUsers, type AuthUser } from '@/lib/api'
 import { IconButton } from '@/components/ui/IconButton'
 import { Avatar } from '@/components/ui/Avatar'
 import { PriorityFlag } from '@/components/ui/Priority'
-import { isDoneList } from '@/lib/design'
+import { isListDone } from '@/lib/design'
 import { cn, dueStatus, taskCode } from '@/lib/utils'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -46,7 +46,7 @@ export function Calendar({ onMenuClick, onOpenCard, onNavigateBoard }: CalendarP
   const cardDone = useMemo(() => {
     const m: Record<string, boolean> = {}
     for (const lid of state.board.listIds) {
-      const done = isDoneList(state.lists[lid].title)
+      const done = isListDone(state.lists[lid])
       for (const cid of state.lists[lid].cardIds) m[cid] = done
     }
     return m
@@ -258,7 +258,7 @@ export function Calendar({ onMenuClick, onOpenCard, onNavigateBoard }: CalendarP
                               <span className="text-[12.5px] font-semibold" style={{ color }}>
                                 {new Date(c.dueDate!).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                               </span>
-                              <span className="font-mono text-[11px] font-semibold text-faint">{taskCode(c.id)}</span>
+                              <span className="font-mono text-[11px] font-semibold text-faint">{taskCode(c)}</span>
                               {st === 'overdue' && <span className="text-[11px] font-medium text-error">просрочено</span>}
                             </div>
                             <div className="flex items-center gap-2">

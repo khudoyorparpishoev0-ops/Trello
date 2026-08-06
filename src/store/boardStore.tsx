@@ -12,7 +12,7 @@ import {
 import type { AppData, Board, BoardState, Card, Checklist, List, Priority, User } from '@/types'
 import { createSeedState, emptyBoard, DEFAULT_DEPARTMENTS } from '@/data/seed'
 import { fetchUsers, loadBoard, saveBoard } from '@/lib/api'
-import { uid } from '@/lib/utils'
+import { backfillTaskCodes, maxTaskCode, nextTaskCode, uid } from '@/lib/utils'
 
 /**
  * Store приложения. Хранит несколько досок (AppData); компонентам отдаёт
@@ -36,6 +36,7 @@ type Action =
   | { type: 'RENAME_LIST'; listId: string; title: string }
   | { type: 'DELETE_LIST'; listId: string }
   | { type: 'SET_LIST_COLOR'; listId: string; color: string }
+  | { type: 'SET_LIST_DONE'; listId: string; done: boolean }
   | { type: 'DUPLICATE_LIST'; listId: string }
   | { type: 'SORT_LIST'; listId: string; by: 'priority' | 'due' | 'title' }
   | { type: 'MOVE_LIST'; listId: string; dir: -1 | 1 }
@@ -100,6 +101,7 @@ function appReducer(state: AppData, action: Action): AppData {
         comments: [],
         attachments: [],
         createdAt: new Date().toISOString(),
+        code: nextTaskCode(state.cards),
       }
       const cardIds = action.atStart ? [id, ...list.cardIds] : [...list.cardIds, id]
       return {
@@ -216,20 +218,29 @@ function appReducer(state: AppData, action: Action): AppData {
       return { ...state, lists: { ...state.lists, [action.listId]: { ...l, color: action.color || undefined } } }
     }
 
+    case 'SET_LIST_DONE': {
+      const l = state.lists[action.listId]
+      if (!l) return state
+      return { ...state, lists: { ...state.lists, [action.listId]: { ...l, done: action.done } } }
+    }
+
     case 'DUPLICATE_LIST': {
       const src = state.lists[action.listId]
       const board = state.boards[state.activeBoardId]
       if (!src || !board) return state
       const newLid = uid('list')
       const nextCards = { ...state.cards }
+      let code = maxTaskCode(state.cards)
       const newCardIds: string[] = []
       for (const cid of src.cardIds) {
         const c = state.cards[cid]
         if (!c) continue
         const nid = uid('card')
+        code += 1
         nextCards[nid] = {
           ...c,
           id: nid,
+          code,
           checklists: c.checklists.map((cl) => ({
             ...cl,
             id: uid('cl'),
@@ -332,6 +343,7 @@ function appReducer(state: AppData, action: Action): AppData {
       const newListIds: string[] = []
       const nextLists = { ...state.lists }
       const nextCards = { ...state.cards }
+      let code = maxTaskCode(state.cards)
       for (const lid of src.listIds) {
         const l = state.lists[lid]
         if (!l) continue
@@ -341,9 +353,11 @@ function appReducer(state: AppData, action: Action): AppData {
           const c = state.cards[cid]
           if (!c) continue
           const newCid = uid('card')
+          code += 1
           nextCards[newCid] = {
             ...c,
             id: newCid,
+            code,
             checklists: c.checklists.map((cl) => ({
               ...cl,
               id: uid('cl'),
@@ -446,7 +460,11 @@ function isAppData(x: unknown): x is AppData {
 /** Старый формат (одна доска) → новый (несколько досок). */
 function migrate(raw: unknown): AppData {
   if (isAppData(raw)) {
-    return { ...raw, departments: raw.departments?.length ? raw.departments : [...DEFAULT_DEPARTMENTS] }
+    return {
+      ...raw,
+      departments: raw.departments?.length ? raw.departments : [...DEFAULT_DEPARTMENTS],
+      cards: backfillTaskCodes(raw.cards ?? {}),
+    }
   }
   const old = raw as BoardState
   const memberIds = old.board?.memberIds ?? Object.keys(old.users ?? {})
@@ -472,7 +490,7 @@ function migrate(raw: unknown): AppData {
     boardOrder: order.length ? order : Object.keys(boards),
     activeBoardId: old.board?.id ?? order[0] ?? '',
     lists: { ...(old.lists ?? {}), ...extraLists },
-    cards: old.cards ?? {},
+    cards: backfillTaskCodes(old.cards ?? {}),
     labels: old.labels ?? {},
     departments: [...DEFAULT_DEPARTMENTS],
   }
@@ -511,6 +529,8 @@ export interface BoardActions {
   renameList: (listId: string, title: string) => void
   deleteList: (listId: string) => void
   setListColor: (listId: string, color: string) => void
+  /** Пометить список как «задачи выполнены» (системный статус, не зависит от названия). */
+  setListDone: (listId: string, done: boolean) => void
   duplicateList: (listId: string) => void
   sortList: (listId: string, by: 'priority' | 'due' | 'title') => void
   moveList: (listId: string, dir: -1 | 1) => void
@@ -631,6 +651,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       renameList: (listId, title) => dispatch({ type: 'RENAME_LIST', listId, title }),
       deleteList: (listId) => dispatch({ type: 'DELETE_LIST', listId }),
       setListColor: (listId, color) => dispatch({ type: 'SET_LIST_COLOR', listId, color }),
+      setListDone: (listId, done) => dispatch({ type: 'SET_LIST_DONE', listId, done }),
       duplicateList: (listId) => dispatch({ type: 'DUPLICATE_LIST', listId }),
       sortList: (listId, by) => dispatch({ type: 'SORT_LIST', listId, by }),
       moveList: (listId, dir) => dispatch({ type: 'MOVE_LIST', listId, dir }),

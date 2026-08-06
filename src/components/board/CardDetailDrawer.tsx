@@ -77,7 +77,7 @@ export function CardDetailDrawer({ cardId, onClose }: CardDetailDrawerProps) {
       title={
         <div className="flex items-center gap-2.5">
           <span className="font-mono text-[12px] font-semibold tracking-[0.02em] text-faint">
-            {taskCode(card.id)}
+            {taskCode(card)}
           </span>
           <span
             className="inline-flex items-center gap-1.5 rounded-pill px-2 py-0.5 text-caption font-medium"
