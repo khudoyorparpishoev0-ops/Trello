@@ -20,14 +20,8 @@ export default function App() {
   const [filters, setFilters] = useState<Filters>({ query: '', onlyMine: false, overdue: false })
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [navOpen, setNavOpen] = useState(false)
-  // Вид доски в переключателе «Доска · Таймлайн · Календарь · Таблица»;
-  // «Календарь» открывает одноимённый раздел, остальные меняют вид на месте.
-  const [boardView, setBoardView] = useState<Exclude<BoardViewKind, 'calendar'>>('board')
-
-  const changeBoardView = (v: BoardViewKind) => {
-    if (v === 'calendar') setView('calendar')
-    else setBoardView(v)
-  }
+  // Вид доски в переключателе «Доска · Таймлайн · Таблица».
+  const [boardView, setBoardView] = useState<BoardViewKind>('board')
 
   return (
     <StickerMenuProvider>
@@ -42,7 +36,7 @@ export default function App() {
               onFiltersChange={setFilters}
               onMenuClick={() => setNavOpen(true)}
               boardView={boardView}
-              onBoardViewChange={changeBoardView}
+              onBoardViewChange={setBoardView}
             />
             <main className="min-h-0 flex-1">
               {boardView === 'board' && <Board filters={filters} onOpenCard={setOpenCardId} />}

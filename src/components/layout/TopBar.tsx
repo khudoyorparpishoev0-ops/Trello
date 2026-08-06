@@ -23,12 +23,11 @@ import { Avatar } from '@/components/ui/Avatar'
 import { cn } from '@/lib/utils'
 
 /** Вид доски в сегментированном переключателе. */
-export type BoardViewKind = 'board' | 'timeline' | 'calendar' | 'table'
+export type BoardViewKind = 'board' | 'timeline' | 'table'
 
 const VIEWS: { k: BoardViewKind; label: string }[] = [
   { k: 'board', label: 'Доска' },
   { k: 'timeline', label: 'Таймлайн' },
-  { k: 'calendar', label: 'Календарь' },
   { k: 'table', label: 'Таблица' },
 ]
 
