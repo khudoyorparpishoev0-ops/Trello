@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CoreTile } from '@/components/ui/Logo'
 import {
   SquareKanban,
   LayoutDashboard,
@@ -73,15 +74,13 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
 
   return (
     <>
-      {/* Логотип */}
-      <div className="flex items-center gap-2.5 px-5 py-4">
-        <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-brand">
-          <SquareKanban size={18} strokeWidth={2.5} className="text-white" />
-        </span>
-        <div className="leading-tight">
-          <div className="text-small font-bold tracking-tight text-fg">IT-HONA</div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-faint">
-            TaskBoard
+      {/* Лок-ап CORE: плитка 34 → зазор 11 → CORE над подписью (ТЗ «Логотип CORE» §3) */}
+      <div className="flex items-center gap-[11px] px-5 py-4">
+        <CoreTile tile={34} mark={21} radius={10} />
+        <div className="leading-[1.15]">
+          <div className="text-[16px] font-bold tracking-[0.02em] text-fg">CORE</div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-faint">
+            IT-HONA Platform
           </div>
         </div>
       </div>

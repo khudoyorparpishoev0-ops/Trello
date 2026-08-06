@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { SquareKanban } from 'lucide-react'
+import { CoreTile } from '@/components/ui/Logo'
 import { getAuth, logout as apiLogout, type AuthUser } from '@/lib/api'
 import { LoginScreen } from '@/components/auth/LoginScreen'
 
@@ -91,9 +91,7 @@ function Splash() {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-bg">
       <div className="flex items-center gap-3 text-muted">
-        <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-brand">
-          <SquareKanban size={20} strokeWidth={2.5} className="text-white" />
-        </span>
+        <CoreTile tile={36} mark={22} radius={10} />
         <span className="animate-pulse text-small">Загрузка…</span>
       </div>
     </div>

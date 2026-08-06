@@ -10,11 +10,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['apple-touch-icon.png'],
+      includeAssets: ['apple-touch-icon.png', 'favicon.svg'],
       manifest: {
-        name: 'IT-HONA TaskBoard',
-        short_name: 'TaskBoard',
-        description: 'Канбан-платформа управления задачами IT-HONA',
+        name: 'CORE · IT-HONA Platform',
+        short_name: 'CORE',
+        description: 'CORE — платформа управления задачами IT-HONA',
         lang: 'ru',
         theme_color: '#0B0B0F',
         background_color: '#0B0B0F',

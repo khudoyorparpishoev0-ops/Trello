@@ -1,6 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import {
-  SquareKanban,
   Lock,
   User,
   IdCard,
@@ -15,6 +14,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { CoreTile } from '@/components/ui/Logo'
 import { login as apiLogin, register as apiRegister, type AuthUser } from '@/lib/api'
 import { loginFromName } from '@/lib/translit'
 import { cn } from '@/lib/utils'
@@ -107,18 +107,13 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
 
   return (
     <div className="flex min-h-screen w-full flex-col items-center justify-center bg-bg px-6 py-12">
-      {/* Логотип-блок */}
-      <div className="mb-7 flex flex-col items-center gap-3">
-        <span
-          className="flex h-14 w-14 items-center justify-center rounded-[16px] bg-brand"
-          style={{ boxShadow: '0 10px 30px color-mix(in srgb, #16a34a 28%, transparent)' }}
-        >
-          <SquareKanban size={28} strokeWidth={2.5} className="text-white" />
-        </span>
-        <div className="text-center leading-none">
-          <div className="text-[26px] font-bold tracking-tight text-fg">IT-HONA</div>
-          <div className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-faint">
-            TASKBOARD
+      {/* Центрированный лок-ап CORE (ТЗ «Логотип CORE» §3): плитка 56, зазор 14, колонка с зазором 6 */}
+      <div className="mb-7 flex flex-col items-center gap-3.5">
+        <CoreTile tile={56} mark={34} radius={16} shadow />
+        <div className="flex flex-col items-center gap-1.5 text-center leading-none">
+          <div className="text-[30px] font-bold tracking-[0.06em] text-fg">CORE</div>
+          <div className="text-[11.5px] font-semibold uppercase tracking-[0.22em] text-faint">
+            IT-HONA Platform
           </div>
         </div>
       </div>
@@ -263,7 +258,7 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
       </form>
 
       <p className="mt-7 text-center text-[12.5px] font-medium text-faint">
-        IT-HONA · Платформа управления задачами
+        CORE · Платформа управления задачами IT-HONA
       </p>
     </div>
   )
