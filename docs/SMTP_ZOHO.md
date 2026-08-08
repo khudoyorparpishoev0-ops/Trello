@@ -14,20 +14,33 @@
 dig +short MX ithona.tj      # или: nslookup -type=MX ithona.tj
 ```
 
-| MX-записи домена | SMTP-сервер |
+| MX-записи домена | Зона сервера |
 |---|---|
-| `mx.zoho.com`, `mx2.zoho.com` | `smtp.zoho.com` |
-| `mx.zoho.eu`, `mx2.zoho.eu` | `smtp.zoho.eu` |
-| `mx.zoho.in`, `mx2.zoho.in` | `smtp.zoho.in` |
-| `mx.zoho.com.au` | `smtp.zoho.com.au` |
-| `mx.zohocloud.ca` | `smtp.zohocloud.ca` |
+| `mx.zoho.com`, `mx2.zoho.com` | `.com` |
+| `mx.zoho.eu`, `mx2.zoho.eu` | `.eu` |
+| `mx.zoho.in`, `mx2.zoho.in` | `.in` |
+| `mx.zoho.com.au` | `.com.au` |
+| `mx.zohocloud.ca` | `zohocloud.ca` |
 
 Тот же признак виден по адресу, с которого вы входите в почту
 (`mail.zoho.com` / `mail.zoho.eu` / …).
 
-Если сервер указать не тот, подключение не пройдёт — это самая частая ошибка.
+## Шаг 1б. Выберите сервер по тарифу — smtp или smtppro
 
-**Для ithona.tj:** MX указывают на `mx.zoho.com` → сервер `smtp.zoho.com`.
+Имя сервера зависит не только от зоны, но и от тарифа. Это вторая частая
+причина ошибки «535 Authentication Failed»: подключение проходит, а логин
+отвергается, потому что ящик обслуживается другим кластером.
+
+| Какой у вас ящик | Сервер (зона `.com`) |
+|---|---|
+| Платный тариф организации, почта на своём домене (`you@ithona.tj`) | **`smtppro.zoho.com`** |
+| Бесплатная организация или личный `@zohomail.com` | `smtp.zoho.com` |
+
+Для других зон — по тому же правилу: `smtppro.zoho.eu`, `smtppro.zoho.in`
+и так далее.
+
+**Для ithona.tj:** MX указывают на `mx.zoho.com`, тариф Mail Lite платный,
+почта на своём домене → сервер **`smtppro.zoho.com`**, порт 465, SSL.
 
 ---
 
@@ -93,7 +106,7 @@ nano .env
 Добавьте (подставьте свой сервер из шага 1 и свой адрес):
 
 ```
-SMTP_HOST=smtp.zoho.com
+SMTP_HOST=smtppro.zoho.com
 SMTP_PORT=465
 SMTP_SECURE=true
 SMTP_USER=noreply@ithona.tj
@@ -124,7 +137,7 @@ docker compose exec api node send-test-mail.js ваш.адрес@ithona.tj
 Ожидаемый результат:
 
 ```
-[mail] SMTP smtp.zoho.com:465 готов, отправитель: CORE <noreply@ithona.tj>
+[mail] SMTP smtppro.zoho.com:465 готов, отправитель: CORE <noreply@ithona.tj>
 Готово: тестовое письмо с кодом 123456 отправлено на ваш.адрес@ithona.tj.
 ```
 
@@ -136,7 +149,7 @@ docker compose exec api node send-test-mail.js ваш.адрес@ithona.tj
 
 | Сообщение | Причина и что делать |
 |---|---|
-| `Invalid login` / `535 Authentication Failed` | Неверный пароль приложения либо взят обычный пароль от почты. Создайте пароль приложения заново (шаг 2) |
+| `Invalid login` / `535 Authentication Failed` | 1) Для платного тарифа с почтой на своём домене сервер должен быть `smtppro.zoho.com`, а не `smtp.zoho.com` (шаг 1б). 2) Пароль приложения создан под другим пользователем — его нужно создавать, войдя именно как `SMTP_USER`. 3) Взят обычный пароль вместо пароля приложения |
 | `getaddrinfo ENOTFOUND` | Неверный SMTP-сервер — проверьте центр данных (шаг 1) |
 | `Connection timeout` | Порт закрыт. Попробуйте 587 с `SMTP_SECURE=false` |
 | `Relaying disallowed` / `553` | `SMTP_FROM` не совпадает с `SMTP_USER` — приведите к одному адресу |

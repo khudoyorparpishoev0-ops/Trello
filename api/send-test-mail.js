@@ -42,6 +42,8 @@ const ok = await verifyMailer()
 if (!ok) {
   console.error('\nПодключиться к серверу почты не удалось — письмо не отправлено.')
   console.error('\nЕсли ответ был «535 Authentication Failed», проверьте по порядку:')
+  console.error('  0. Сервер соответствует тарифу: у платного тарифа Zoho с почтой на своём')
+  console.error('     домене это smtppro.zoho.com (не smtp.zoho.com).')
   console.error(`  1. Ящик ${process.env.SMTP_USER || '(SMTP_USER)'} действительно существует`)
   console.error('     (Zoho Mail Admin → Пользователи).')
   console.error('  2. Пароль приложения создан ПОД ЭТИМ ЖЕ ящиком: нужно войти в')
