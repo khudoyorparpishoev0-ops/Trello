@@ -6,18 +6,28 @@
 
 ## Шаг 1. Определите свой центр данных Zoho
 
-Настройки сервера зависят от того, где создан аккаунт. Посмотрите на адрес,
-по которому вы входите в почту:
+Настройки сервера зависят от того, где создан аккаунт. Самый надёжный способ —
+посмотреть MX-записи домена в консоли Zoho (**Домены → ваш домен → MX**) либо
+командой:
 
-| Вход по адресу | SMTP-сервер |
+```bash
+dig +short MX ithona.tj      # или: nslookup -type=MX ithona.tj
+```
+
+| MX-записи домена | SMTP-сервер |
 |---|---|
-| `mail.zoho.com` | `smtp.zoho.com` |
-| `mail.zoho.eu` | `smtp.zoho.eu` |
-| `mail.zoho.in` | `smtp.zoho.in` |
-| `mail.zoho.com.au` | `smtp.zoho.com.au` |
-| `mail.zohocloud.ca` | `smtp.zohocloud.ca` |
+| `mx.zoho.com`, `mx2.zoho.com` | `smtp.zoho.com` |
+| `mx.zoho.eu`, `mx2.zoho.eu` | `smtp.zoho.eu` |
+| `mx.zoho.in`, `mx2.zoho.in` | `smtp.zoho.in` |
+| `mx.zoho.com.au` | `smtp.zoho.com.au` |
+| `mx.zohocloud.ca` | `smtp.zohocloud.ca` |
+
+Тот же признак виден по адресу, с которого вы входите в почту
+(`mail.zoho.com` / `mail.zoho.eu` / …).
 
 Если сервер указать не тот, подключение не пройдёт — это самая частая ошибка.
+
+**Для ithona.tj:** MX указывают на `mx.zoho.com` → сервер `smtp.zoho.com`.
 
 ---
 
