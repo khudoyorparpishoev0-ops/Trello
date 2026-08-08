@@ -29,6 +29,10 @@ export interface AuthInfo {
   authRequired: boolean
   /** Включён ли режим личных аккаунтов (регистрация по коду). */
   accountsEnabled: boolean
+  /** true — код подтверждения приходит на рабочую почту; false — код от администратора. */
+  emailVerification?: boolean
+  /** Домены, с которых разрешена регистрация (для подсказки в форме). */
+  emailDomains?: string[]
   /** Выполнен ли вход. */
   authenticated: boolean
   /** Текущий пользователь (если вошёл). */
@@ -62,6 +66,21 @@ export async function login(loginName: string, password: string): Promise<AuthRe
     })
     const data = await res.json().catch(() => ({}))
     return { ok: res.ok, error: data?.error, user: data?.user }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+
+/** Запросить код подтверждения на рабочую почту. */
+export async function requestRegistrationCode(email: string): Promise<{ ok: boolean; error?: string; retryAfter?: number }> {
+  try {
+    const res = await fetch(`${BASE}/auth/register/request-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    const data = await res.json().catch(() => ({}))
+    return { ok: res.ok, error: data?.error, retryAfter: data?.retryAfter }
   } catch {
     return { ok: false, error: 'network' }
   }

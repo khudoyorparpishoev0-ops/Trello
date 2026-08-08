@@ -35,6 +35,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('checking')
   const [authActive, setAuthActive] = useState(false)
   const [accountsEnabled, setAccountsEnabled] = useState(false)
+  const [emailVerification, setEmailVerification] = useState(false)
   const [user, setUser] = useState<AuthUser | null>(null)
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       }
       setAuthActive(a.authRequired)
       setAccountsEnabled(a.accountsEnabled)
+      setEmailVerification(!!a.emailVerification)
       setUser(a.user)
       if (!a.authRequired || a.authenticated) setStatus('authed')
       else setStatus('login')
@@ -71,6 +73,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <LoginScreen
         accountsEnabled={accountsEnabled}
+        emailVerification={emailVerification}
         onSuccess={(u) => {
           setUser(u ?? null)
           setAuthActive(true)

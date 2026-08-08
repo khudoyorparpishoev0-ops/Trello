@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "ioredis": "^5.4.1",
+    "nodemailer": "^9.0.5",
     "pg": "^8.13.1"
   }
 }

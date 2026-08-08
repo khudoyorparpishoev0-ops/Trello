@@ -45,6 +45,13 @@ services:
       INVITE_CODE: ${INVITE_CODE:-}
       # Домены корпоративной почты для регистрации (пусто в .env — по умолчанию ithona.tj, fazo-tech.tj).
       ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS-}
+      # Почта для кодов подтверждения регистрации (пусто — код-приглашение).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_REMINDER_HOUR: ${TELEGRAM_REMINDER_HOUR:-6}
     expose:

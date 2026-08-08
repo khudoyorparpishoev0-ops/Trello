@@ -15,13 +15,15 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { CoreTile } from '@/components/ui/Logo'
-import { login as apiLogin, register as apiRegister, type AuthUser } from '@/lib/api'
+import { login as apiLogin, register as apiRegister, requestRegistrationCode, type AuthUser } from '@/lib/api'
 import { loginFromEmail } from '@/lib/translit'
 import { domainsHint, emailDomainAllowed } from '@/lib/emailDomains'
 import { cn } from '@/lib/utils'
 
 interface LoginScreenProps {
   accountsEnabled: boolean
+  /** true — код подтверждения приходит на рабочую почту; false — код от администратора. */
+  emailVerification?: boolean
   onSuccess: (user?: AuthUser) => void
 }
 
@@ -31,6 +33,14 @@ const ERRORS: Record<string, string> = {
   login_taken: 'Такой логин уже занят',
   invalid_fields: 'Проверьте поля: имя, логин от 3 символов, пароль от 6',
   email_domain_not_allowed: `Регистрация только с рабочей почты: ${domainsHint()}`,
+  email_taken: 'На эту почту уже зарегистрирован аккаунт',
+  invalid_email: 'Проверьте адрес почты',
+  code_not_requested: 'Сначала запросите код на почту',
+  code_expired: 'Код истёк — запросите новый',
+  too_many_attempts: 'Слишком много попыток — запросите новый код',
+  invalid_code: 'Неверный код из письма',
+  mail_send_failed: 'Не удалось отправить письмо. Проверьте адрес или обратитесь к администратору',
+  code_resend_wait: 'Письмо уже отправлено — подождите минуту',
   network: 'Нет связи с сервером',
 }
 
@@ -49,7 +59,7 @@ function passwordStrength(pw: string): { pct: number; color: string; label: stri
 }
 
 /** Экран входа / регистрации (хендофф §1). Регистрация — при включённых аккаунтах. */
-export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
+export function LoginScreen({ accountsEnabled, emailVerification, onSuccess }: LoginScreenProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
   const [loginName, setLoginName] = useState('')
@@ -65,6 +75,28 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
   const [remember, setRemember] = useState(true)
   const [forgot, setForgot] = useState(false)
   const [loginEdited, setLoginEdited] = useState(false)
+  const [codeSent, setCodeSent] = useState(false)
+  const [sendingCode, setSendingCode] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  // Запрос кода подтверждения на рабочую почту.
+  const requestCode = async () => {
+    setError('')
+    setNotice('')
+    if (!emailDomainAllowed(email)) {
+      setError(ERRORS.email_domain_not_allowed)
+      return
+    }
+    setSendingCode(true)
+    const r = await requestRegistrationCode(email.trim())
+    setSendingCode(false)
+    if (r.ok) {
+      setCodeSent(true)
+      setNotice(`Код отправлен на ${email.trim()} — письмо приходит за минуту`)
+    } else {
+      setError(ERRORS[r.error ?? ''] ?? 'Не удалось отправить код')
+    }
+  }
 
   // Логин создаётся из рабочей почты (часть до «@»), пока пользователь не
   // отредактировал его вручную.
@@ -242,9 +274,38 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
           </div>
 
           {mode === 'register' && (
-            <Field icon={KeyRound} label="Код приглашения">
-              <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Код от администратора" className={inputCls} />
-            </Field>
+            emailVerification ? (
+              <Field icon={KeyRound} label="Код из письма">
+                <div className="flex gap-2">
+                  <input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="6 цифр"
+                    className={cn(inputCls, 'flex-1 pl-10 font-mono tracking-[0.3em]')}
+                  />
+                  <button
+                    type="button"
+                    onClick={requestCode}
+                    disabled={sendingCode || !email.trim()}
+                    className="h-[46px] shrink-0 rounded-btn border border-line-strong px-3.5 text-[13px] font-semibold text-fg transition-colors hover:bg-hover disabled:opacity-40"
+                  >
+                    {sendingCode ? '…' : codeSent ? 'Ещё раз' : 'Отправить код'}
+                  </button>
+                </div>
+                <p className="mt-[5px] text-[11.5px] text-faint">
+                  {codeSent
+                    ? 'Проверьте почту — код действует 15 минут'
+                    : 'Нажмите «Отправить код» — письмо придёт на рабочую почту'}
+                </p>
+              </Field>
+            ) : (
+              <Field icon={KeyRound} label="Код приглашения">
+                <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Код от администратора" className={inputCls} />
+              </Field>
+            )
           )}
 
           {/* Запомнить / Забыли пароль — только вход */}
@@ -266,6 +327,12 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
           )}
 
           {error && <p className="mb-3 text-caption text-error">{error}</p>}
+          {!error && notice && (
+            <p className="mb-3 flex items-start gap-1.5 text-caption text-brand">
+              <Check size={14} strokeWidth={2.5} className="mt-px shrink-0" />
+              {notice}
+            </p>
+          )}
 
           <button
             type="submit"

@@ -14,10 +14,22 @@ import { initTelegram, getBotUsername, telegramEnabled, notifyAssignments, notif
 import { validateBoardPayload, shouldSnapshot } from './boardGuard.js'
 import { limiterKey, retryAfter, registerFailure, registerSuccess } from './rateLimit.js'
 import { allowedDomains, isEmailAllowed, domainsHint } from './emailDomains.js'
+import { mailerEnabled, sendVerificationCode, verifyMailer } from './mailer.js'
+import {
+  CODE_TTL_MS,
+  canResend,
+  checkStoredCode,
+  generateCode,
+  hashCode,
+  resendWaitSeconds,
+} from './verifyCodes.js'
 
 const PORT = Number(process.env.PORT ?? 3000)
 const INVITE_CODE = process.env.INVITE_CODE ?? ''
-const ACCOUNTS = INVITE_CODE.length > 0
+// Личные аккаунты включены, если настроена почта (код подтверждения приходит
+// письмом) либо задан код-приглашение (прежний способ, пока почты нет).
+const EMAIL_VERIFY = mailerEnabled()
+const ACCOUNTS = EMAIL_VERIFY || INVITE_CODE.length > 0
 const AUTH_LOGIN = process.env.AUTH_LOGIN || 'admin'
 const AUTH_PASSWORD = process.env.AUTH_PASSWORD ?? ''
 const SHARED = !ACCOUNTS && AUTH_PASSWORD.length > 0
@@ -62,6 +74,13 @@ async function ensureSchema() {
   // Журнал отправленных уведомлений — защита от повторов (день рождения/дедлайн).
   await pool.query(`CREATE TABLE IF NOT EXISTS notif_log (
     key text PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now())`)
+  // Коды подтверждения регистрации: хранится только хеш кода.
+  await pool.query(`CREATE TABLE IF NOT EXISTS email_codes (
+    email text PRIMARY KEY,
+    code_hash text NOT NULL,
+    attempts int NOT NULL DEFAULT 0,
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now())`)
   // Снимки доски перед перезаписью — страховка от потери данных.
   await pool.query(`CREATE TABLE IF NOT EXISTS board_history (
     id bigserial PRIMARY KEY,
@@ -80,6 +99,7 @@ async function initWithRetry() {
       const mode = ACCOUNTS ? 'личные аккаунты' : SHARED ? 'общий вход' : 'открытый'
       console.log(`[api] схема БД готова · режим: ${mode}`)
       initTelegram(pool).catch((e) => console.error('[tg] init:', e.message))
+      verifyMailer().catch((e) => console.error('[mail] проверка:', e.message))
       return
     } catch (e) {
       console.log(`[api] жду БД… (${e.code ?? e.message})`)
@@ -221,9 +241,57 @@ async function handle(req, res) {
     return json(res, 200, {
       authRequired: AUTH_REQUIRED,
       accountsEnabled: ACCOUNTS,
+      // true — код подтверждения приходит на рабочую почту (поле «код
+      // приглашения» в форме не нужно); false — прежний код от администратора.
+      emailVerification: EMAIL_VERIFY,
+      emailDomains: allowedDomains(),
       authenticated: AUTH_REQUIRED ? !!u : true,
       user: publicUser(u),
     })
+  }
+
+  // Запрос кода подтверждения на рабочую почту.
+  if (path === '/api/auth/register/request-code' && req.method === 'POST') {
+    if (!ACCOUNTS) return json(res, 403, { error: 'registration_disabled' })
+    if (!EMAIL_VERIFY) return json(res, 400, { error: 'email_verification_disabled' })
+    const body = await readBody(req)
+    let b = {}
+    try { b = JSON.parse(body) } catch { return json(res, 400, { error: 'bad_request' }) }
+    const email = String(b.email ?? '').trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'invalid_email' })
+    if (!isEmailAllowed(email)) {
+      return json(res, 403, { error: 'email_domain_not_allowed', domains: allowedDomains(), hint: domainsHint() })
+    }
+    // Адрес уже занят — код не отправляем, чтобы письмо не служило подсказкой.
+    const taken = await pool.query('SELECT 1 FROM users WHERE lower(email) = $1', [email])
+    if (taken.rows.length) return json(res, 409, { error: 'email_taken' })
+
+    // Ограничение частоты: и по адресу, и по IP.
+    const ipKey = limiterKey(clientIp(req), 'register-code')
+    const ipWait = retryAfter(ipKey)
+    if (ipWait > 0) return json(res, 429, { error: 'too_many_attempts', retryAfter: ipWait })
+
+    const prev = await pool.query('SELECT created_at FROM email_codes WHERE email = $1', [email])
+    const wait = resendWaitSeconds(prev.rows[0])
+    if (!canResend(prev.rows[0])) return json(res, 429, { error: 'code_resend_wait', retryAfter: wait })
+
+    const code = generateCode()
+    const expires = new Date(Date.now() + CODE_TTL_MS).toISOString()
+    await pool.query(
+      `INSERT INTO email_codes (email, code_hash, attempts, expires_at, created_at)
+       VALUES ($1, $2, 0, $3, now())
+       ON CONFLICT (email) DO UPDATE SET code_hash = $2, attempts = 0, expires_at = $3, created_at = now()`,
+      [email, hashCode(email, code), expires],
+    )
+    try {
+      await sendVerificationCode(email, code, CODE_TTL_MS)
+    } catch (e) {
+      console.error('[mail] отправка не удалась:', e.message)
+      await pool.query('DELETE FROM email_codes WHERE email = $1', [email]).catch(() => {})
+      return json(res, 502, { error: 'mail_send_failed' })
+    }
+    registerFailure(ipKey) // считаем запросы кода, чтобы нельзя было рассылать письма пачками
+    return json(res, 200, { ok: true, ttlMinutes: Math.round(CODE_TTL_MS / 60000) })
   }
 
   if (path === '/api/auth/register' && req.method === 'POST') {
@@ -238,7 +306,21 @@ async function handle(req, res) {
     const birthday = String(b.birthday ?? '').trim()
     const email = String(b.email ?? '').trim()
     const position = String(b.position ?? '').trim()
-    if (!safeEqual(String(b.code ?? ''), INVITE_CODE)) return json(res, 403, { error: 'bad_code' })
+    // Подтверждение: код из письма (если почта настроена) либо код-приглашение.
+    if (EMAIL_VERIFY) {
+      const mail = email.toLowerCase()
+      const row = (await pool.query('SELECT * FROM email_codes WHERE email = $1', [mail])).rows[0]
+      const verdict = checkStoredCode(row, mail, String(b.code ?? ''))
+      if (!verdict.ok) {
+        // Неудачную попытку засчитываем, чтобы код нельзя было подобрать.
+        if (row && verdict.error === 'invalid_code') {
+          await pool.query('UPDATE email_codes SET attempts = attempts + 1 WHERE email = $1', [mail]).catch(() => {})
+        }
+        return json(res, 403, { error: verdict.error })
+      }
+    } else if (!safeEqual(String(b.code ?? ''), INVITE_CODE)) {
+      return json(res, 403, { error: 'bad_code' })
+    }
     if (
       name.length < 2 ||
       login.length < 3 ||
@@ -266,6 +348,10 @@ async function handle(req, res) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [id, login, name, initials, color, role, salt, hash, department, birthday, email, position],
     )
+    // Код одноразовый: повторно использовать его нельзя.
+    if (EMAIL_VERIFY) {
+      await pool.query('DELETE FROM email_codes WHERE email = $1', [email.toLowerCase()]).catch(() => {})
+    }
     const cookie = await newSession(id)
     return json(
       res,

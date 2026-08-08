@@ -288,6 +288,49 @@ const run = async () => {
     )
     await auth.context().close()
 
+    // ——— 11б. Регистрация с кодом из письма ———
+    r.section('Код подтверждения по почте')
+    let sentTo = ''
+    const mailAuth = await newPage({}, {
+      '/api/auth/me': (_route, send) =>
+        send({ authRequired: true, accountsEnabled: true, emailVerification: true, authenticated: false, user: null }),
+      '/api/auth/register/request-code': async (route, send) => {
+        sentTo = JSON.parse(route.request().postData() || '{}').email || ''
+        return send({ ok: true, ttlMinutes: 15 })
+      },
+    }, false)
+    await mailAuth.goto(site.base, { waitUntil: 'domcontentloaded' })
+    await mailAuth.getByRole('button', { name: 'Регистрация' }).click()
+    await mailAuth.getByPlaceholder('ivan@ithona.tj').waitFor()
+    r.check(
+      (await mailAuth.getByText('Код приглашения').count()) === 0,
+      'поля «Код приглашения» больше нет',
+    )
+    r.check((await mailAuth.getByText('Код из письма').count()) > 0, 'вместо него — «Код из письма»')
+    r.check(
+      (await mailAuth.getByRole('button', { name: 'Отправить код' }).count()) > 0,
+      'есть кнопка «Отправить код»',
+    )
+    await mailAuth.getByPlaceholder('ivan@ithona.tj').fill('ivan@ithona.tj')
+    await mailAuth.getByRole('button', { name: 'Отправить код' }).click()
+    await mailAuth.waitForTimeout(250)
+    r.check(sentTo === 'ivan@ithona.tj', `код запрошен для указанного адреса (${sentTo})`)
+    r.check(
+      (await mailAuth.getByText(/Код отправлен на ivan@ithona.tj/).count()) > 0,
+      'показано подтверждение отправки письма',
+    )
+    r.check(
+      (await mailAuth.getByRole('button', { name: 'Ещё раз' }).count()) > 0,
+      'кнопка переключается на повторную отправку',
+    )
+    // Посторонняя почта: письмо не запрашивается
+    sentTo = ''
+    await mailAuth.getByPlaceholder('ivan@ithona.tj').fill('someone@gmail.com')
+    await mailAuth.getByRole('button', { name: 'Ещё раз' }).click()
+    await mailAuth.waitForTimeout(250)
+    r.check(sentTo === '', 'на постороннюю почту код не отправляется')
+    await mailAuth.context().close()
+
     // ——— 12. Ошибка сервера ———
     r.section('Обработка ошибок')
     const broken = await newPage({}, {
