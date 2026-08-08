@@ -42,6 +42,15 @@ export async function verifyMailer() {
     console.log('[mail] выключена (нет SMTP_HOST) — регистрация по коду-приглашению')
     return false
   }
+  // Частая причина отказа: почтовые службы (в том числе Zoho) не дают
+  // отправлять от чужого адреса — отправитель должен совпадать с логином
+  // либо быть его подтверждённым псевдонимом.
+  if (USER && FROM && !FROM.toLowerCase().includes(USER.toLowerCase())) {
+    console.warn(
+      `[mail] внимание: SMTP_FROM (${FROM}) не совпадает с SMTP_USER (${USER}). ` +
+        'Многие службы отклоняют такие письма — укажите тот же адрес или его псевдоним.',
+    )
+  }
   try {
     await getTransport().verify()
     console.log(`[mail] SMTP ${HOST}:${PORT} готов, отправитель: ${FROM}`)
