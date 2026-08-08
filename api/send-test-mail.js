@@ -25,6 +25,7 @@ if (!mailerEnabled()) {
 console.log('Настройки:')
 console.log('  SMTP_HOST =', process.env.SMTP_HOST)
 console.log('  SMTP_PORT =', process.env.SMTP_PORT ?? '587 (по умолчанию)')
+console.log('  SMTP_SECURE =', process.env.SMTP_SECURE || '(не задан — определится по порту)')
 console.log('  SMTP_USER =', process.env.SMTP_USER || '(не задан)')
 console.log('  SMTP_FROM =', process.env.SMTP_FROM || '(берётся из SMTP_USER)')
 // Сам пароль не печатаем — только признаки, по которым видно порчу значения.
@@ -36,6 +37,16 @@ const passInfo = pass
     (pass.includes('$') ? ' — ВНИМАНИЕ: содержит $, в .env его нужно удвоить ($$)' : '')
   : '(НЕ ЗАДАН)'
 console.log('  SMTP_PASS =', passInfo)
+
+const host = process.env.SMTP_HOST ?? ''
+if (!host.includes('.') || host === 'true' || host === 'false') {
+  console.log('')
+  console.error(`ВНИМАНИЕ: SMTP_HOST = «${host}» не похож на адрес сервера.`)
+  console.error('Похоже, в .env перепутаны строки. Должно быть так:')
+  console.error('  SMTP_HOST=smtppro.zoho.com')
+  console.error('  SMTP_PORT=465')
+  console.error('  SMTP_SECURE=true')
+}
 console.log('')
 
 const ok = await verifyMailer()
