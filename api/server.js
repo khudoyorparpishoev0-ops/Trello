@@ -13,6 +13,7 @@ import Redis from 'ioredis'
 import { initTelegram, getBotUsername, telegramEnabled, notifyAssignments, notifyDueChanges } from './telegram.js'
 import { validateBoardPayload, shouldSnapshot } from './boardGuard.js'
 import { limiterKey, retryAfter, registerFailure, registerSuccess } from './rateLimit.js'
+import { allowedDomains, isEmailAllowed, domainsHint } from './emailDomains.js'
 
 const PORT = Number(process.env.PORT ?? 3000)
 const INVITE_CODE = process.env.INVITE_CODE ?? ''
@@ -248,6 +249,10 @@ async function handle(req, res) {
       !/^\d{4}-\d{2}-\d{2}$/.test(birthday)
     )
       return json(res, 400, { error: 'invalid_fields' })
+    // Регистрация только с корпоративной почты компании.
+    if (!isEmailAllowed(email)) {
+      return json(res, 403, { error: 'email_domain_not_allowed', domains: allowedDomains(), hint: domainsHint() })
+    }
     const exists = await pool.query('SELECT 1 FROM users WHERE lower(login) = lower($1)', [login])
     if (exists.rows.length) return json(res, 409, { error: 'login_taken' })
     const count = await pool.query('SELECT count(*)::int AS n FROM users')
@@ -336,6 +341,11 @@ async function handle(req, res) {
       !/^\d{4}-\d{2}-\d{2}$/.test(birthday)
     )
       return json(res, 400, { error: 'invalid_fields' })
+    // Ограничение по домену действует и здесь: иначе его можно было бы обойти,
+    // сменив почту в профиле сразу после регистрации.
+    if (!isEmailAllowed(email)) {
+      return json(res, 403, { error: 'email_domain_not_allowed', domains: allowedDomains(), hint: domainsHint() })
+    }
     const initials = initialsFrom(name)
     await pool.query(
       'UPDATE users SET name = $1, email = $2, department = $3, position = $4, birthday = $5, initials = $6 WHERE id = $7',

@@ -246,6 +246,35 @@ const run = async () => {
       (await auth.getByText(/Неверный логин или пароль/).count()) > 0,
       'неверные данные → понятное сообщение, вход не выполняется',
     )
+    // Регистрация только с корпоративной почты
+    await auth.getByRole('button', { name: 'Регистрация' }).click()
+    await auth.getByPlaceholder('ivan@ithona.tj').waitFor()
+    r.check(
+      (await auth.getByText(/Только рабочая почта/).count()) > 0,
+      'в форме регистрации есть подсказка про корпоративную почту',
+    )
+    const fill = async (mail) => {
+      await auth.getByPlaceholder('Иванов Иван Иванович').fill('Тестов Тест')
+      await auth.getByPlaceholder('Руководитель отдела').fill('Инженер')
+      await auth.getByPlaceholder('Разработка').fill('IT-отдел')
+      await auth.getByPlaceholder('ivan@ithona.tj').fill(mail)
+      await auth.locator('input[type=date]').fill('1990-01-01')
+      await auth.locator('input[type=password]').first().fill('parol123')
+      await auth.getByPlaceholder('Код от администратора').fill('code')
+    }
+    await fill('someone@gmail.com')
+    await auth.getByRole('button', { name: 'Зарегистрироваться' }).click()
+    await auth.waitForTimeout(250)
+    r.check(
+      (await auth.getByText(/только с рабочей почты/i).count()) > 0,
+      'посторонняя почта (@gmail.com) отклоняется с понятным сообщением',
+    )
+    await fill('ivan@ithona.tj')
+    await auth.waitForTimeout(150)
+    r.check(
+      (await auth.locator('.border-error').count()) === 0,
+      'корпоративная почта (@ithona.tj) не подсвечивается ошибкой',
+    )
     await auth.context().close()
 
     // ——— 12. Ошибка сервера ———

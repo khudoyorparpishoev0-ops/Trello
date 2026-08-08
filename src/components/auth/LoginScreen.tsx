@@ -17,6 +17,7 @@ import type { LucideIcon } from 'lucide-react'
 import { CoreTile } from '@/components/ui/Logo'
 import { login as apiLogin, register as apiRegister, type AuthUser } from '@/lib/api'
 import { loginFromName } from '@/lib/translit'
+import { domainsHint, emailDomainAllowed } from '@/lib/emailDomains'
 import { cn } from '@/lib/utils'
 
 interface LoginScreenProps {
@@ -29,6 +30,7 @@ const ERRORS: Record<string, string> = {
   bad_code: 'Неверный код приглашения',
   login_taken: 'Такой логин уже занят',
   invalid_fields: 'Проверьте поля: имя, логин от 3 символов, пароль от 6',
+  email_domain_not_allowed: `Регистрация только с рабочей почты: ${domainsHint()}`,
   network: 'Нет связи с сервером',
 }
 
@@ -85,6 +87,12 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
         !department.trim() || !birthday || !email.trim() || !position.trim()
       )
         return
+      // Ранняя проверка домена — чтобы не отправлять заведомо отклоняемый запрос.
+      // Окончательное решение всё равно принимает сервер.
+      if (!emailDomainAllowed(email)) {
+        setError(ERRORS.email_domain_not_allowed)
+        return
+      }
       setLoading(true)
       const r = await apiRegister({
         name: name.trim(), login: loginName.trim(), password, code: code.trim(),
@@ -162,7 +170,17 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
                 <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Разработка" className={inputCls} />
               </Field>
               <Field icon={Mail} label="E-mail">
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="ivan@ithona.tj" className={inputCls} />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  placeholder="ivan@ithona.tj"
+                  className={cn(inputCls, email.trim() && !emailDomainAllowed(email) && 'border-error')}
+                />
+                <p className={cn('mt-[5px] text-[11.5px]', email.trim() && !emailDomainAllowed(email) ? 'text-error' : 'text-faint')}>
+                  Только рабочая почта: {domainsHint()}
+                </p>
               </Field>
               <Field icon={Cake} label="Дата рождения">
                 <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} className={inputCls} />
