@@ -33,3 +33,26 @@ export function loginFromName(fio: string): string {
   const t = translit(imya).replace(/[^a-z0-9]/g, '')
   return t ? t[0].toUpperCase() + t.slice(1) : ''
 }
+
+/**
+ * Логин из рабочей почты: часть адреса до «@».
+ * «i.ivanov@ithona.tj» → «i.ivanov», «Khudoyor@fazo-tech.tj» → «khudoyor».
+ *
+ * Кириллица транслитерируется, точка, дефис и подчёркивание сохраняются,
+ * остальные символы убираются — логин должен набираться с клавиатуры.
+ * Если имени перед «@» нет, логин пустой: домен в него не попадает.
+ */
+export function loginFromEmail(email: string): string {
+  const s = email.trim().toLowerCase()
+  const at = s.indexOf('@')
+  if (at === 0) return '' // адрес вида «@ithona.tj» — имени нет
+  const local = at > 0 ? s.slice(0, at) : s
+  return local
+    .split('')
+    .map((ch) => {
+      if (ch in MAP) return MAP[ch]
+      if (/[a-z0-9._-]/.test(ch)) return ch
+      return ''
+    })
+    .join('')
+}

@@ -16,7 +16,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { CoreTile } from '@/components/ui/Logo'
 import { login as apiLogin, register as apiRegister, type AuthUser } from '@/lib/api'
-import { loginFromName } from '@/lib/translit'
+import { loginFromEmail } from '@/lib/translit'
 import { domainsHint, emailDomainAllowed } from '@/lib/emailDomains'
 import { cn } from '@/lib/utils'
 
@@ -66,9 +66,11 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
   const [forgot, setForgot] = useState(false)
   const [loginEdited, setLoginEdited] = useState(false)
 
-  const onNameChange = (value: string) => {
-    setName(value)
-    if (mode === 'register' && !loginEdited) setLoginName(loginFromName(value))
+  // Логин создаётся из рабочей почты (часть до «@»), пока пользователь не
+  // отредактировал его вручную.
+  const onEmailChange = (value: string) => {
+    setEmail(value)
+    if (mode === 'register' && !loginEdited) setLoginName(loginFromEmail(value))
   }
 
   const submit = async (e: FormEvent) => {
@@ -161,7 +163,7 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
           {mode === 'register' && (
             <>
               <Field icon={IdCard} label="Ф.И.О">
-                <input value={name} onChange={(e) => onNameChange(e.target.value)} autoFocus placeholder="Иванов Иван Иванович" className={inputCls} />
+                <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="Иванов Иван Иванович" className={inputCls} />
               </Field>
               <Field icon={Briefcase} label="Должность">
                 <input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Руководитель отдела" className={inputCls} />
@@ -173,7 +175,7 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => onEmailChange(e.target.value)}
                   autoComplete="email"
                   placeholder="ivan@ithona.tj"
                   className={cn(inputCls, email.trim() && !emailDomainAllowed(email) && 'border-error')}
@@ -203,7 +205,7 @@ export function LoginScreen({ accountsEnabled, onSuccess }: LoginScreenProps) {
               />
             </div>
             {mode === 'register' && (
-              <p className="mt-1 text-[11.5px] text-faint">Создаётся из Ф.И.О автоматически — можно изменить</p>
+              <p className="mt-1 text-[11.5px] text-faint">Создаётся из e-mail автоматически — можно изменить</p>
             )}
           </div>
 

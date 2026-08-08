@@ -17,6 +17,7 @@ import {
   uid,
 } from '../../src/lib/utils.ts'
 import { isDoneList, isListDone, listAccentColor } from '../../src/lib/design.ts'
+import { loginFromEmail } from '../../src/lib/translit.ts'
 import { cardMatchesFilters } from '../../src/lib/filterCards.ts'
 import type { BoardState, Card, List } from '../../src/types.ts'
 
@@ -282,4 +283,44 @@ test('спецсимволы и HTML в названии не ломают фи�
   const c = baseCard({ title: evil })
   assert.equal(cardMatchesFilters(c, mkList(), st(), { ...NOFILTER, query: 'onerror' }), true)
   assert.match(taskCode(evil), /^IT-\d+$/)
+})
+
+// ——— Логин из рабочей почты ———
+
+test('логин создаётся из части адреса до «@»', () => {
+  assert.equal(loginFromEmail('ivan@ithona.tj'), 'ivan')
+  assert.equal(loginFromEmail('i.ivanov@fazo-tech.tj'), 'i.ivanov')
+})
+
+test('логин из почты приводится к нижнему регистру', () => {
+  assert.equal(loginFromEmail('Khudoyor@ITHONA.TJ'), 'khudoyor')
+  assert.equal(loginFromEmail('  Ivan@ithona.tj  '), 'ivan')
+})
+
+test('логин из почты сохраняет точку, дефис и подчёркивание', () => {
+  assert.equal(loginFromEmail('i.ivanov-2_a@ithona.tj'), 'i.ivanov-2_a')
+})
+
+test('логин из почты убирает недопустимые символы', () => {
+  assert.equal(loginFromEmail('ivan+tag@ithona.tj'), 'ivantag')
+  assert.equal(loginFromEmail('a b c@ithona.tj'), 'abc')
+})
+
+test('логин из почты: кириллица транслитерируется', () => {
+  assert.equal(loginFromEmail('иван@ithona.tj'), 'ivan')
+  assert.equal(loginFromEmail('худоёр@fazo-tech.tj'), 'khudoyor')
+})
+
+test('логин из почты: домен не попадает в логин', () => {
+  // Адрес без имени: логин должен остаться пустым, а не стать «ithona.tj».
+  assert.equal(loginFromEmail('@ithona.tj'), '')
+})
+
+test('логин из почты: пустой ввод не роняет форму', () => {
+  assert.equal(loginFromEmail(''), '')
+  assert.equal(loginFromEmail('   '), '')
+})
+
+test('логин из почты: адрес без «@» используется целиком', () => {
+  assert.equal(loginFromEmail('ivan'), 'ivan')
 })

@@ -272,6 +272,17 @@ const run = async () => {
     await fill('ivan@ithona.tj')
     await auth.waitForTimeout(150)
     r.check(
+      (await auth.getByPlaceholder('имя латиницей').inputValue()) === 'ivan',
+      'логин подставляется из почты (ivan@ithona.tj → ivan)',
+    )
+    await auth.getByPlaceholder('имя латиницей').fill('my.login')
+    await auth.getByPlaceholder('ivan@ithona.tj').fill('other@ithona.tj')
+    await auth.waitForTimeout(150)
+    r.check(
+      (await auth.getByPlaceholder('имя латиницей').inputValue()) === 'my.login',
+      'логин, изменённый вручную, не перезаписывается сменой почты',
+    )
+    r.check(
       (await auth.locator('.border-error').count()) === 0,
       'корпоративная почта (@ithona.tj) не подсвечивается ошибкой',
     )
