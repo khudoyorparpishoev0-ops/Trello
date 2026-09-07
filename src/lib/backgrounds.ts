@@ -7,17 +7,22 @@ export interface BgPreset {
   css: string
 }
 
+/**
+ * Готовые фоны досок. Все тона — из палитры брендбука (зелёная шкала плюс
+ * четыре статусных), градиенты идут под 150° — это ось семейства 30°/60°,
+ * единственных допустимых наклонов. Произвольных оттенков в наборе нет.
+ */
 export const BG_PRESETS: BgPreset[] = [
-  { id: 'emerald', label: 'Изумруд', css: 'linear-gradient(135deg,#065f46,#10b981)' },
-  { id: 'ocean', label: 'Океан', css: 'linear-gradient(135deg,#0c4a6e,#0ea5e9)' },
-  { id: 'indigo', label: 'Индиго', css: 'linear-gradient(135deg,#312e81,#6366f1)' },
-  { id: 'sunset', label: 'Закат', css: 'linear-gradient(135deg,#7c2d12,#f59e0b)' },
-  { id: 'plum', label: 'Слива', css: 'linear-gradient(135deg,#4a1d4a,#c026d3)' },
-  { id: 'rose', label: 'Роза', css: 'linear-gradient(135deg,#831843,#ec4899)' },
-  { id: 'teal', label: 'Бирюза', css: 'linear-gradient(135deg,#134e4a,#14b8a6)' },
-  { id: 'night', label: 'Ночь', css: 'linear-gradient(135deg,#020617,#1e293b)' },
-  { id: 'cherry', label: 'Вишня', css: 'linear-gradient(135deg,#7f1d1d,#ef4444)' },
-  { id: 'aurora', label: 'Аврора', css: 'linear-gradient(135deg,#6366f1,#ec4899,#f59e0b)' },
+  { id: 'ink', label: 'Тёмный', css: '#0B120E' },
+  { id: 'graphite', label: 'Графит', css: 'linear-gradient(150deg,#101613,#26332B)' },
+  { id: 'forest', label: 'Хвоя', css: 'linear-gradient(150deg,#0E3B21,#186B36)' },
+  { id: 'green', label: 'Зелёный', css: 'linear-gradient(150deg,#186B36,#22A74E)' },
+  { id: 'sage', label: 'Шалфей', css: 'linear-gradient(150deg,#B7D6C2,#DCEAE1)' },
+  { id: 'mist', label: 'Светлый', css: '#F5F7F5' },
+  { id: 'info', label: 'Синий', css: 'linear-gradient(150deg,#23539F,#2E6FD9)' },
+  { id: 'warn', label: 'Охра', css: 'linear-gradient(150deg,#7A5510,#E0A126)' },
+  { id: 'err', label: 'Кирпич', css: 'linear-gradient(150deg,#8E2A20,#B8382C)' },
+  { id: 'deep', label: 'Глубокий', css: 'linear-gradient(150deg,#0E3B21,#0B120E)' },
 ]
 
 /** Стиль фона для контейнера доски. Картинка (data-URL/http) → cover; иначе — как есть. */

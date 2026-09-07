@@ -25,10 +25,10 @@ export default function App() {
 
   return (
     <StickerMenuProvider>
-    <div className="flex h-screen w-full overflow-hidden bg-bg text-fg">
+    <div className="flex h-screen w-full overflow-hidden bg-page text-fg">
       <Sidebar activeView={view} onSelectView={setView} />
       <MobileNav open={navOpen} onClose={() => setNavOpen(false)} activeView={view} onSelectView={setView} />
-      <div className="flex min-w-0 flex-1 flex-col pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0">
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(72px+env(safe-area-inset-bottom))] lg:pb-0">
         {view === 'board' && (
           <>
             <TopBar

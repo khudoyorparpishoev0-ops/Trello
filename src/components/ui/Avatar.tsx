@@ -3,42 +3,52 @@ import { cn } from '@/lib/utils'
 
 interface AvatarProps {
   user: User
-  size?: 'xs' | 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   showStatus?: boolean
+  /** Тёмно-зелёная плитка — для собственного пользователя в сайдбаре. */
+  tone?: 'neutral' | 'brand'
   className?: string
 }
 
-const SIZES = {
-  xs: 'h-5 w-5 text-[9px]',
-  sm: 'h-6 w-6 text-[10px]',
-  md: 'h-8 w-8 text-caption',
+const SIZES: Record<NonNullable<AvatarProps['size']>, string> = {
+  xs: 'h-5 w-5',
+  sm: 'h-6 w-6',
+  md: 'h-8 w-8',
+  lg: 'h-9 w-9',
+  xl: 'h-10 w-10',
 }
 
-/** Avatar с фото или инициалами и индикатором онлайн-статуса (Brand Book §6). */
-export function Avatar({ user, size = 'sm', showStatus, className }: AvatarProps) {
+/**
+ * Аватар — квадратная плитка с радиусом 2px (брендбук §04: круглых аватаров и
+ * «таблеток» нет). Заливка нейтральная: насыщенный цвет по правилу палитры
+ * остаётся за индикаторами и графиками, поэтому людей различают инициалы,
+ * набранные служебной моно-гарнитурой.
+ */
+export function Avatar({ user, size = 'sm', showStatus, tone = 'neutral', className }: AvatarProps) {
   return (
     <span className={cn('relative inline-flex shrink-0', className)} title={user.name}>
       {user.avatar ? (
         <img
           src={user.avatar}
           alt={user.name}
-          className={cn('rounded-pill object-cover ring-2 ring-surface-2', SIZES[size])}
+          className={cn('rounded-chip border border-line object-cover', SIZES[size])}
         />
       ) : (
         <span
           className={cn(
-            'inline-flex items-center justify-center rounded-pill font-semibold text-white',
-            'ring-2 ring-surface-2',
+            'mono-data inline-flex items-center justify-center rounded-chip border',
+            tone === 'brand'
+              ? 'border-transparent bg-sidebar-active text-white'
+              : 'border-line bg-mist text-muted',
             SIZES[size],
           )}
-          style={{ background: user.color }}
         >
           {user.initials}
         </span>
       )}
       {showStatus && user.online && (
         <span
-          className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-pill bg-success ring-2 ring-surface-2"
+          className="absolute -bottom-px -right-px h-2 w-2 border border-surface bg-ok"
           aria-label="онлайн"
         />
       )}
@@ -49,27 +59,27 @@ export function Avatar({ user, size = 'sm', showStatus, className }: AvatarProps
 interface AvatarStackProps {
   users: User[]
   max?: number
-  size?: 'xs' | 'sm' | 'md'
+  size?: AvatarProps['size']
 }
 
-/** Наложенный стек аватаров с «+N». */
+/**
+ * Ряд аватаров с «+N». Плитки стоят встык с зазором 2px, а не внахлёст:
+ * наложение требовало кольца-обводки цветом фона, а на прямоугольных плитках
+ * оно читается как брак вёрстки.
+ */
 export function AvatarStack({ users, max = 3, size = 'sm' }: AvatarStackProps) {
   const shown = users.slice(0, max)
   const rest = users.length - shown.length
-  const overlap = size === 'xs' ? '-ml-1.5' : '-ml-2'
   return (
-    <div className="flex items-center">
-      {shown.map((u, i) => (
-        <span key={u.id} className={cn(i > 0 && overlap)}>
-          <Avatar user={u} size={size} />
-        </span>
+    <div className="flex items-center gap-0.5">
+      {shown.map((u) => (
+        <Avatar key={u.id} user={u} size={size} />
       ))}
       {rest > 0 && (
         <span
           className={cn(
-            'inline-flex items-center justify-center rounded-pill bg-surface text-muted font-semibold ring-2 ring-surface-2',
-            SIZES[size],
-            overlap,
+            'mono-data inline-flex items-center justify-center rounded-chip border border-line bg-mist text-muted',
+            SIZES[size ?? 'sm'],
           )}
         >
           +{rest}

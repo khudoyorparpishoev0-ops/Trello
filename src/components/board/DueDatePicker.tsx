@@ -69,12 +69,14 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
   const pkToday = () => onChange(composeDate(new Date()))
   const shiftMonth = (delta: number) => setView({ y: viewMonth.y, m: viewMonth.m + delta })
 
-  // Цвет триггера — по состоянию срока (ТЗ Карточка §4.4).
+  // Цвет триггера задаётся СРОКОМ, а не приоритетом: просрочено — err, ≤48ч — warn.
   const status = dueStatus(value, false, new Date(now))
-  const dueColor = status === 'overdue' ? '#EF4444' : status === 'soon' ? '#F59E0B' : null
-  const triggerStyle: CSSProperties = dueColor
-    ? { color: dueColor, background: `color-mix(in srgb, ${dueColor} 14%, transparent)`, borderColor: `color-mix(in srgb, ${dueColor} 30%, transparent)` }
-    : { color: 'var(--muted)', borderColor: 'var(--line)' }
+  const triggerStyle: CSSProperties =
+    status === 'overdue'
+      ? { color: 'var(--err-ink)', background: 'var(--err-bg)', borderLeftColor: 'var(--err)' }
+      : status === 'soon'
+        ? { color: 'var(--warn-ink)', background: 'var(--warn-bg)', borderLeftColor: 'var(--warn)' }
+        : { color: 'var(--muted)', background: 'var(--mist)', borderLeftColor: 'var(--line-strong)' }
 
   return (
     <div className="relative inline-block">
@@ -82,39 +84,38 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
         type="button"
         onClick={() => { setOpen((o) => !o); setView(null) }}
         style={triggerStyle}
-        className="inline-flex items-center gap-[7px] rounded-[10px] border px-[11px] py-[5px] text-[12.5px] font-semibold transition-colors hover:brightness-110"
+        className="inline-flex h-11 items-center gap-2 border-l-2 px-3 text-body transition-colors"
       >
-        <Calendar size={13} strokeWidth={2} />
+        <Calendar size={18} strokeWidth={1.6} />
         <span className="whitespace-nowrap">
-          {value ? `${formatDate(value)} · ${deadlineRemaining(value, now)}` : 'Не задан'}
+          {value ? `${formatDate(value)} · ${deadlineRemaining(value, now)}` : 'Срок не задан'}
         </span>
-        <ChevronDown size={12} strokeWidth={2} className="opacity-60" />
+        <ChevronDown size={16} strokeWidth={1.6} className="opacity-60" />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} aria-hidden />
           <div
-            className="absolute left-0 top-[calc(100%+8px)] z-30 flex max-w-[calc(100vw-40px)] flex-col overflow-hidden rounded-modal border border-line-strong bg-surface sm:flex-row"
-            style={{ boxShadow: '0 20px 52px rgba(0,0,0,.5)' }}
+            className="absolute left-0 top-[calc(100%+8px)] z-30 flex max-w-[calc(100vw-40px)] flex-col overflow-hidden rounded-card border border-line bg-elevated shadow-md sm:flex-row"
           >
             {/* Календарь */}
             <div className="flex w-64 flex-col gap-2.5 p-3.5">
               <div className="flex items-center justify-between">
-                <span className="text-[13px] font-semibold text-brand">{MONTHS[dispM]} {dispY}</span>
+                <span className="mono-label text-brand-ink">{MONTHS[dispM]} {dispY}</span>
                 <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => shiftMonth(-1)} aria-label="Предыдущий месяц" className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] text-muted transition-colors hover:bg-hover hover:text-fg">
-                    <ChevronLeft size={15} strokeWidth={2} />
+                  <button type="button" onClick={() => shiftMonth(-1)} aria-label="Предыдущий месяц" className="flex h-7 w-7 items-center justify-center rounded-chip text-muted transition-colors hover:bg-hover hover:text-fg">
+                    <ChevronLeft size={16} strokeWidth={1.6} />
                   </button>
-                  <button type="button" onClick={() => shiftMonth(1)} aria-label="Следующий месяц" className="flex h-[26px] w-[26px] items-center justify-center rounded-[8px] text-muted transition-colors hover:bg-hover hover:text-fg">
-                    <ChevronRight size={15} strokeWidth={2} />
+                  <button type="button" onClick={() => shiftMonth(1)} aria-label="Следующий месяц" className="flex h-7 w-7 items-center justify-center rounded-chip text-muted transition-colors hover:bg-hover hover:text-fg">
+                    <ChevronRight size={16} strokeWidth={1.6} />
                   </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-7 gap-0.5">
                 {WEEKDAYS.map((w) => (
-                  <div key={w} className="text-center text-[10.5px] font-semibold tracking-[0.04em] text-faint">{w}</div>
+                  <div key={w} className="mono-data text-center text-faint">{w}</div>
                 ))}
               </div>
 
@@ -130,14 +131,14 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
                       type="button"
                       onClick={() => pkDay(d)}
                       className={cn(
-                        'flex h-8 items-center justify-center rounded-[9px] text-[12.5px] tabular-nums transition-[background] duration-150 hover:brightness-[1.4]',
+                        'flex h-8 items-center justify-center rounded-chip font-mono text-caption tabular-nums transition-colors hover:bg-hover',
                         isSel
-                          ? 'bg-brand font-bold text-white'
+                          ? 'bg-brand-fill font-semibold text-white hover:bg-brand-fill'
                           : inMonth
-                            ? 'font-medium text-fg'
-                            : 'font-normal text-faint',
+                            ? 'text-fg'
+                            : 'text-faint',
                       )}
-                      style={isToday && !isSel ? { boxShadow: 'inset 0 0 0 1px var(--line-strong)', fontWeight: 700 } : undefined}
+                      style={isToday && !isSel ? { boxShadow: 'inset 0 0 0 1px var(--green)' } : undefined}
                     >
                       {d.getDate()}
                     </button>
@@ -146,10 +147,10 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
               </div>
 
               <div className="flex items-center justify-between border-t border-line pt-2">
-                <button type="button" onClick={() => { onChange(undefined); setOpen(false) }} className="text-[12.5px] font-semibold text-error hover:brightness-110">
+                <button type="button" onClick={() => { onChange(undefined); setOpen(false) }} className="text-caption font-semibold text-err-ink hover:underline">
                   Удалить
                 </button>
-                <button type="button" onClick={pkToday} className="text-[12.5px] font-semibold text-brand hover:brightness-110">
+                <button type="button" onClick={pkToday} className="text-caption font-semibold text-brand-ink hover:underline">
                   Сегодня
                 </button>
               </div>
@@ -161,8 +162,8 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
             {/* Время */}
             <div className="flex flex-col">
               <div className="flex justify-center border-b border-line px-0 pb-1.5 pt-2.5 sm:justify-start">
-                <div className="w-[52px] text-center text-[10.5px] font-semibold tracking-[0.06em] text-faint">ЧАС</div>
-                <div className="w-[52px] text-center text-[10.5px] font-semibold tracking-[0.06em] text-faint">МИН</div>
+                <div className="mono-label w-14 text-center text-faint">Час</div>
+                <div className="mono-label w-14 text-center text-faint">Мин</div>
               </div>
               <div className="flex justify-center p-1.5 sm:justify-start">
                 <div ref={hourRef} className="flex max-h-[150px] w-14 flex-col gap-0.5 overflow-y-auto no-scrollbar sm:max-h-[236px]">
@@ -172,8 +173,8 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
                       type="button"
                       onClick={() => onChange(composeTime(h, curM))}
                       className={cn(
-                        'h-[30px] shrink-0 rounded-[8px] text-[12.5px] tabular-nums transition-[background] duration-150 hover:brightness-[1.4]',
-                        h === curH ? 'bg-brand font-semibold text-white' : 'font-medium text-muted',
+                        'h-[30px] shrink-0 rounded-chip font-mono text-caption tabular-nums transition-colors hover:bg-hover',
+                        h === curH ? 'bg-brand-fill font-semibold text-white hover:bg-brand-fill' : 'text-muted',
                       )}
                     >
                       {p2(h)}
@@ -187,8 +188,8 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
                       type="button"
                       onClick={() => onChange(composeTime(curH, mi))}
                       className={cn(
-                        'h-[30px] shrink-0 rounded-[8px] text-[12.5px] tabular-nums transition-[background] duration-150 hover:brightness-[1.4]',
-                        mi === curM ? 'bg-brand font-semibold text-white' : 'font-medium text-muted',
+                        'h-[30px] shrink-0 rounded-chip font-mono text-caption tabular-nums transition-colors hover:bg-hover',
+                        mi === curM ? 'bg-brand-fill font-semibold text-white hover:bg-brand-fill' : 'text-muted',
                       )}
                     >
                       {p2(mi)}
@@ -200,7 +201,7 @@ export function DueDatePicker({ value, onChange }: DueDatePickerProps) {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="h-[34px] w-full rounded-[10px] bg-brand text-[12.5px] font-semibold text-white transition-[filter] hover:brightness-[1.08]"
+                  className="h-10 w-full rounded-btn bg-brand-fill text-small font-semibold text-white transition-opacity hover:opacity-90"
                 >
                   Готово
                 </button>

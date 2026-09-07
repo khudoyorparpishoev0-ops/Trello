@@ -1,45 +1,63 @@
+import { cn } from '@/lib/utils'
+
 /**
- * Логотип CORE (ТЗ «Логотип CORE»). Знак — изометрический модуль из трёх
- * граней в viewBox 0 0 24 24; объём задаётся прозрачностями (1 / .55 / .82),
- * зазор 0.6 между верхней гранью и боковыми обязателен — без него грани
- * сливаются в мелком масштабе. Пути — дословно из эталона CORE-Logo-B-Module.
+ * Лок-апы CORE.
+ *
+ * Знак IT-HONA не перерисовывается: по брендбуку он берётся готовым файлом из
+ * официального пакета (`ithona_mark-green.svg` и выворотка `-white`), а
+ * пересохранённый логотип считается браком. Файлы выдаёт владелец бренда, в
+ * пакет редизайна они не входят — до их получения используется текстовый
+ * лок-ап и фирменная плитка со срезом угла 60°. Когда файл появится, подставьте
+ * его внутрь `CoreTile` вместо подписи.
  */
 
-interface CoreMarkProps {
-  /** Размер знака, px. */
+interface CoreTileProps {
+  /** Сторона плитки, px. */
   size: number
-  /**
-   * Вариант заливки: white — на зелёной плитке; green — зелёный на тёмном
-   * без плитки (прозрачности .5/.78 от базового); dim — приглушённый.
-   */
-  variant?: 'white' | 'green' | 'dim'
+  className?: string
 }
 
-export function CoreMark({ size, variant = 'white' }: CoreMarkProps) {
-  const fill = variant === 'green' ? '#16A34A' : variant === 'dim' ? 'rgba(255,255,255,.72)' : '#fff'
-  const [oLeft, oRight] = variant === 'green' ? [0.5, 0.78] : variant === 'dim' ? [0.56, 0.79] : [0.55, 0.82]
+/**
+ * Тёмно-зелёная плитка со срезом верхнего правого угла под 60° (брендбук §04:
+ * допустимы только 60° и 30°). Подпись — служебный моно-слой.
+ */
+export function CoreTile({ size, className }: CoreTileProps) {
   return (
-    <svg viewBox="0 0 24 24" style={{ width: size, height: size }} aria-hidden>
-      <path d="M12 2.6 21 7.8 12 13 3 7.8z" fill={fill} />
-      <path d="M3 9.6v6.6L11 21v-6.6z" fill={fill} opacity={oLeft} />
-      <path d="M21 9.6v6.6L13 21v-6.6z" fill={fill} opacity={oRight} />
-    </svg>
+    <span
+      className={cn('flex shrink-0 items-end bg-sidebar p-2', className)}
+      style={{
+        width: size,
+        height: size,
+        clipPath: `polygon(0 0, calc(100% - ${Math.round(size * 0.55)}px) 0, 100% ${Math.round(size * 0.32)}px, 100% 100%, 0 100%)`,
+      }}
+      aria-hidden
+    >
+      <span className="mono-label text-white">CORE</span>
+    </span>
   )
 }
 
-/** Зелёная плитка со знаком (лок-апы и иконка приложения). */
-export function CoreTile({ tile, mark, radius, shadow }: { tile: number; mark: number; radius: number; shadow?: boolean }) {
+interface CoreWordmarkProps {
+  /** Тёмный фон (сайдбар) или светлая поверхность. */
+  tone?: 'onDark' | 'onLight'
+  className?: string
+}
+
+/** Текстовый лок-ап: рубрика IT-HONA над названием продукта. */
+export function CoreWordmark({ tone = 'onDark', className }: CoreWordmarkProps) {
   return (
-    <span
-      className="flex shrink-0 items-center justify-center bg-brand"
-      style={{
-        width: tile,
-        height: tile,
-        borderRadius: radius,
-        boxShadow: shadow ? '0 10px 30px color-mix(in srgb, #16a34a 28%, transparent)' : undefined,
-      }}
-    >
-      <CoreMark size={mark} />
+    <span className={cn('block', className)}>
+      <span className={cn('mono-label block', tone === 'onDark' ? 'text-sidebar-muted' : 'text-muted')}>
+        IT&#8209;HONA
+      </span>
+      <span
+        className={cn(
+          'mt-1 block text-h3 tracking-[0.02em]',
+          tone === 'onDark' ? 'text-white' : 'text-fg',
+        )}
+      >
+        CORE
+      </span>
     </span>
   )
 }

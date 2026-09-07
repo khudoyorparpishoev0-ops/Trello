@@ -75,9 +75,9 @@ export function Timeline({ filters, onOpenCard }: TimelineProps) {
     <div className="h-full overflow-auto">
       <div className="relative" style={{ width: contentW, minWidth: '100%' }}>
         {/* Шапка с днями */}
-        <div className="sticky top-0 z-20 flex border-b border-line bg-bg">
+        <div className="sticky top-0 z-20 flex border-b border-line bg-mist">
           <div
-            className="sticky left-0 z-10 shrink-0 border-r border-line bg-bg px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint"
+            className="mono-label sticky left-0 z-10 shrink-0 border-r border-line bg-mist px-4 py-3 text-faint"
             style={{ width: LEFT_W }}
           >
             Задача
@@ -90,15 +90,15 @@ export function Timeline({ filters, onOpenCard }: TimelineProps) {
                 key={i}
                 style={{ width: DAY_W }}
                 className={cn(
-                  'shrink-0 py-2 text-center text-[11px] tabular-nums',
+                  'mono-data shrink-0 py-3 text-center',
                   weekend && 'bg-hover',
-                  isToday ? 'font-bold text-brand' : 'font-medium text-faint',
+                  isToday ? 'text-brand-ink' : 'text-faint',
                 )}
               >
                 {d.getDate() === 1 || i === 0 ? (
                   <span className="block leading-none">
                     {d.getDate()}
-                    <span className="block text-[9px] uppercase">{MONTHS[d.getMonth()]}</span>
+                    <span className="mt-0.5 block text-[9px] uppercase">{MONTHS[d.getMonth()]}</span>
                   </span>
                 ) : (
                   d.getDate()
@@ -111,7 +111,7 @@ export function Timeline({ filters, onOpenCard }: TimelineProps) {
         {/* Линия «сегодня» */}
         <div
           aria-hidden
-          className="pointer-events-none absolute bottom-0 top-[33px] z-10 w-px bg-brand"
+          className="pointer-events-none absolute bottom-0 top-[41px] z-10 w-px bg-brand"
           style={{ left: LEFT_W + todayIdx * DAY_W + DAY_W / 2 }}
         />
 
@@ -124,22 +124,22 @@ export function Timeline({ filters, onOpenCard }: TimelineProps) {
             className="group flex w-full border-b border-line text-left transition-colors hover:bg-hover"
           >
             <span
-              className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-line bg-bg px-4 py-2.5 group-hover:bg-hover"
+              className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-line bg-page px-4 py-3 group-hover:bg-hover"
               style={{ width: LEFT_W }}
             >
-              <span className="h-2 w-2 shrink-0 rounded-pill" style={{ background: r.accent }} aria-hidden />
-              <span className="shrink-0 font-mono text-[10.5px] font-semibold text-faint">{taskCode({ id: r.cardId, code: r.code })}</span>
-              <span className={cn('min-w-0 truncate text-[13px] font-medium', r.done ? 'text-muted line-through' : 'text-fg')}>
+              <span className="h-2 w-2 shrink-0" style={{ background: r.accent }} aria-hidden />
+              <span className="mono-data shrink-0 text-faint">{taskCode({ id: r.cardId, code: r.code })}</span>
+              <span className={cn('min-w-0 truncate text-caption', r.done ? 'text-muted line-through' : 'text-fg')}>
                 {r.title}
               </span>
             </span>
             <span className="relative block h-10 shrink-0" style={{ width: totalDays * DAY_W }}>
               <span
-                className="absolute top-1/2 h-[18px] -translate-y-1/2 rounded-pill transition-[filter] group-hover:brightness-110"
+                className="absolute top-1/2 h-4 -translate-y-1/2 rounded-chip transition-opacity group-hover:opacity-100"
                 style={{
                   left: r.startIdx * DAY_W + 3,
                   width: (r.endIdx - r.startIdx + 1) * DAY_W - 6,
-                  background: r.overdue ? '#EF4444' : r.accent,
+                  background: r.overdue ? 'var(--err)' : r.accent,
                   opacity: r.done ? 0.45 : 0.9,
                 }}
               />
@@ -148,13 +148,14 @@ export function Timeline({ filters, onOpenCard }: TimelineProps) {
         ))}
 
         {rows.length === 0 && (
-          <div className="px-6 py-12 text-center text-caption text-faint">
-            Нет задач со сроком в окне таймлайна (неделя назад — три недели вперёд)
+          <div className="px-6 py-12 text-center">
+            <p className="text-body text-muted">Нет задач со сроком в окне таймлайна</p>
+            <p className="mt-1 text-caption text-faint">Окно — неделя назад и три недели вперёд.</p>
           </div>
         )}
 
         {hidden > 0 && (
-          <div className="sticky left-0 px-6 py-3 text-[11.5px] text-faint" style={{ maxWidth: '100vw' }}>
+          <div className="sticky left-0 px-6 py-3 text-caption text-faint" style={{ maxWidth: '100vw' }}>
             Без срока или вне окна: {hidden} задач(и) — не показаны. Задайте срок, чтобы они появились на таймлайне.
           </div>
         )}

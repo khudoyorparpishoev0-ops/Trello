@@ -12,7 +12,8 @@ import {
 import type { AppData, Board, BoardState, Card, Checklist, List, Priority, User } from '@/types'
 import { createSeedState, emptyBoard, DEFAULT_DEPARTMENTS } from '@/data/seed'
 import { fetchUsers, loadBoard, saveBoard } from '@/lib/api'
-import { backfillTaskCodes, maxTaskCode, nextTaskCode, uid } from '@/lib/utils'
+import { backfillTaskCodes, dueStatus, maxTaskCode, nextTaskCode, uid } from '@/lib/utils'
+import { isListDone } from '@/lib/design'
 
 /**
  * Store приложения. Хранит несколько досок (AppData); компонентам отдаёт
@@ -553,6 +554,12 @@ export interface BoardSummary {
   id: string
   name: string
   memberIds: string[]
+  /** Всего карточек на доске. */
+  total: number
+  /** Не закрытых (списки без признака «выполнено»). */
+  active: number
+  /** Из активных — просроченных. */
+  overdue: number
 }
 
 interface BoardContextValue {
@@ -672,19 +679,43 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   )
 
   const state = useMemo(() => deriveView(app), [app])
+
+  /**
+   * Сводка по доске для сайдбара и раздела «Компания»: сколько задач, сколько
+   * из них в работе и сколько просрочено. Считается здесь, потому что только
+   * тут доступны списки и карточки всех досок сразу, а не одной активной.
+   */
+  const summarize = useCallback(
+    (id: string): BoardSummary => {
+      const b = app.boards[id]
+      let total = 0
+      let active = 0
+      let overdue = 0
+      for (const lid of b.listIds) {
+        const list = app.lists[lid]
+        if (!list) continue
+        const done = isListDone(list)
+        for (const cid of list.cardIds) {
+          const card = app.cards[cid]
+          if (!card) continue
+          total += 1
+          if (done) continue
+          active += 1
+          if (dueStatus(card.dueDate, false) === 'overdue') overdue += 1
+        }
+      }
+      return { id, name: b.name, memberIds: b.memberIds, total, active, overdue }
+    },
+    [app.boards, app.lists, app.cards],
+  )
+
   const boards = useMemo(
-    () =>
-      app.boardOrder
-        .filter((id) => app.boards[id] && !app.boards[id].archived)
-        .map((id) => ({ id, name: app.boards[id].name, memberIds: app.boards[id].memberIds })),
-    [app.boardOrder, app.boards],
+    () => app.boardOrder.filter((id) => app.boards[id] && !app.boards[id].archived).map(summarize),
+    [app.boardOrder, app.boards, summarize],
   )
   const archivedBoards = useMemo(
-    () =>
-      app.boardOrder
-        .filter((id) => app.boards[id] && app.boards[id].archived)
-        .map((id) => ({ id, name: app.boards[id].name, memberIds: app.boards[id].memberIds })),
-    [app.boardOrder, app.boards],
+    () => app.boardOrder.filter((id) => app.boards[id] && app.boards[id].archived).map(summarize),
+    [app.boardOrder, app.boards, summarize],
   )
 
   const value = useMemo(

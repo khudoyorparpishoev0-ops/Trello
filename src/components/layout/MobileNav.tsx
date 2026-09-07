@@ -23,10 +23,15 @@ export function MobileNav({ open, onClose, activeView, onSelectView }: MobileNav
 
   return (
     <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} aria-hidden />
-      <div className="relative flex h-full w-[280px] max-w-[85vw] flex-col border-r border-line bg-sidebar shadow-md animate-slide-up">
-        <div className="absolute right-2 top-3">
-          <IconButton icon={X} label="Закрыть меню" size="sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 animate-fade-in"
+        style={{ background: 'var(--overlay)' }}
+        onClick={onClose}
+        aria-hidden
+      />
+      <div className="relative flex h-full w-[280px] max-w-[85vw] flex-col overflow-y-auto bg-sidebar py-6 shadow-md animate-slide-up">
+        <div className="absolute right-3 top-4">
+          <IconButton icon={X} label="Закрыть меню" onClick={onClose} className="text-sidebar-muted hover:bg-sidebar-active hover:text-white" />
         </div>
         <SidebarContent activeView={activeView} onSelectView={onSelectView} onNavigate={onClose} />
       </div>

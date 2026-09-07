@@ -36,11 +36,16 @@ export function BoardBackgroundModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} aria-hidden />
-      <div className="relative w-full max-w-[440px] rounded-modal border border-line bg-elevated p-5 shadow-md animate-scale-in">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-h3 font-semibold text-fg">Фон доски</h3>
-          <IconButton icon={X} label="Закрыть" size="sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 animate-fade-in"
+        style={{ background: 'var(--overlay)' }}
+        onClick={onClose}
+        aria-hidden
+      />
+      <div className="relative w-full max-w-[440px] rounded-modal border border-line bg-elevated p-6 shadow-md animate-scale-in">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-h3">Фон доски</h3>
+          <IconButton icon={X} label="Закрыть" onClick={onClose} />
         </div>
 
         <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-5">
@@ -49,11 +54,11 @@ export function BoardBackgroundModal({ onClose }: { onClose: () => void }) {
             onClick={() => set('')}
             title="Без фона"
             className={cn(
-              'relative flex h-14 items-center justify-center rounded-card border bg-bg text-faint transition-colors',
+              'relative flex h-14 items-center justify-center rounded-card border bg-mist text-faint transition-colors',
               !current ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-line-strong',
             )}
           >
-            <Ban size={16} strokeWidth={2} />
+            <Ban size={18} strokeWidth={1.6} />
             {!current && <ActiveDot />}
           </button>
           {BG_PRESETS.map((p) => (
@@ -64,8 +69,8 @@ export function BoardBackgroundModal({ onClose }: { onClose: () => void }) {
               title={p.label}
               style={{ background: p.css }}
               className={cn(
-                'relative h-14 rounded-card border transition-transform hover:scale-[1.03]',
-                current === p.css ? 'border-brand ring-1 ring-brand' : 'border-black/20',
+                'relative h-14 rounded-card border transition-transform hover:scale-[1.02]',
+                current === p.css ? 'border-brand ring-1 ring-brand' : 'border-line',
               )}
             >
               {current === p.css && <ActiveDot />}
@@ -74,13 +79,13 @@ export function BoardBackgroundModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {isImage && (
-          <div className="mt-3 flex items-center gap-2.5 rounded-card border border-brand/40 bg-bg p-2">
+          <div className="mt-4 flex items-center gap-3 border-l-2 border-l-brand bg-brand-bg p-2">
             <span
-              className="h-10 w-16 shrink-0 rounded-[8px] bg-cover bg-center ring-1 ring-line"
+              className="h-10 w-16 shrink-0 rounded-chip border border-line bg-cover bg-center"
               style={{ backgroundImage: `url("${current}")` }}
             />
-            <span className="text-caption text-muted">Своя картинка выбрана</span>
-            <Check size={16} className="ml-auto text-brand" />
+            <span className="text-caption text-brand-ink">Своя картинка выбрана</span>
+            <Check size={16} strokeWidth={1.6} className="ml-auto text-brand-ink" />
           </div>
         )}
 
@@ -89,12 +94,14 @@ export function BoardBackgroundModal({ onClose }: { onClose: () => void }) {
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-btn border border-dashed border-line-strong py-2.5 text-small font-medium text-muted transition-colors hover:border-muted hover:text-fg disabled:opacity-60"
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-btn border border-dashed border-line-strong text-body text-muted transition-colors hover:border-muted hover:text-fg disabled:opacity-60"
         >
-          {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} strokeWidth={2} />}
+          {busy ? <Loader2 size={18} className="animate-spin" strokeWidth={1.6} /> : <Upload size={18} strokeWidth={1.6} />}
           Загрузить свой фон
         </button>
-        {err && <p className="mt-2 text-caption text-error">{err}</p>}
+        {err && (
+          <p className="mt-3 border-l-2 border-l-err bg-err-bg px-3 py-2 text-caption text-err-ink">{err}</p>
+        )}
       </div>
     </div>
   )
@@ -102,8 +109,8 @@ export function BoardBackgroundModal({ onClose }: { onClose: () => void }) {
 
 function ActiveDot() {
   return (
-    <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-pill bg-brand text-white ring-2 ring-elevated">
-      <Check size={11} strokeWidth={3} />
+    <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-chip bg-brand-fill text-white">
+      <Check size={11} strokeWidth={2.4} />
     </span>
   )
 }

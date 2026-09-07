@@ -36,12 +36,12 @@ export function TableView({ filters, onOpenCard }: TableViewProps) {
   }, [state, filters])
 
   return (
-    <div className="h-full overflow-auto px-4 py-4 sm:px-6 sm:py-5">
+    <div className="h-full overflow-auto px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-container">
-        <div className="overflow-x-auto rounded-card border border-line bg-surface shadow-card">
+        <div className="overflow-x-auto rounded-card border border-line bg-surface">
           <div className="min-w-[900px]">
             {/* Заголовки */}
-            <div className={cn('grid items-center gap-3 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint', COLS)}>
+            <div className={cn('mono-label grid items-center gap-3 bg-mist px-6 py-3 text-faint', COLS)}>
               <span>Код</span>
               <span>Задача</span>
               <span>Список</span>
@@ -52,8 +52,9 @@ export function TableView({ filters, onOpenCard }: TableViewProps) {
             </div>
 
             {rows.length === 0 && (
-              <div className="border-t border-line px-5 py-10 text-center text-caption text-faint">
-                Нет карточек под текущие фильтры
+              <div className="border-t border-line px-6 py-12 text-center">
+                <p className="text-body text-muted">Нет карточек под текущие фильтры</p>
+                <p className="mt-1 text-caption text-faint">Снимите фильтр «Мои карточки» или «Просрочено».</p>
               </div>
             )}
 
@@ -62,49 +63,50 @@ export function TableView({ filters, onOpenCard }: TableViewProps) {
               const { done: clDone, total } = checklistProgress(c.checklists)
               const assignees = c.assigneeIds.map((id) => state.users[id]).filter(Boolean)
               const cardLabels = c.labelIds.map((id) => state.labels[id]).filter(Boolean)
+              // Цвет срока — по сроку, а не по приоритету.
               const status = dueStatus(c.dueDate, done)
-              const dueColor = status === 'overdue' ? '#EF4444' : status === 'soon' ? '#F59E0B' : null
-              const dueStyle: CSSProperties | undefined = c.dueDate
-                ? dueColor
-                  ? { color: dueColor, background: `color-mix(in srgb, ${dueColor} 14%, transparent)` }
-                  : { color: 'var(--muted)', background: 'var(--hover)' }
-                : undefined
+              const dueStyle: CSSProperties | undefined =
+                status === 'overdue'
+                  ? { color: 'var(--err-ink)', background: 'var(--err-bg)' }
+                  : status === 'soon'
+                    ? { color: 'var(--warn-ink)', background: 'var(--warn-bg)' }
+                    : { color: 'var(--muted)', background: 'var(--mist)' }
               return (
                 <button
                   key={cardId}
                   type="button"
                   onClick={() => onOpenCard(cardId)}
-                  className={cn('grid w-full items-center gap-3 border-t border-line px-5 py-3 text-left transition-colors hover:bg-hover', COLS)}
+                  className={cn('grid min-h-[56px] w-full items-center gap-3 border-t border-line px-6 py-3 text-left transition-colors hover:bg-hover', COLS)}
                 >
-                  <span className="font-mono text-[11px] font-semibold tracking-[0.02em] text-faint">{taskCode(c)}</span>
+                  <span className="mono-data text-muted">{taskCode(c)}</span>
                   <span className="min-w-0">
-                    <span className={cn('block truncate text-small font-medium', done ? 'text-muted line-through' : 'text-fg')}>
+                    <span className={cn('block truncate text-body', done ? 'text-muted line-through' : 'text-fg')}>
                       {c.title}
                     </span>
                     {cardLabels.length > 0 && (
-                      <span className="mt-0.5 block truncate text-[11px] text-faint">
+                      <span className="mono-data mt-0.5 block truncate text-faint">
                         {cardLabels.map((l) => l.name).join(' · ')}
                       </span>
                     )}
                   </span>
-                  <span className="inline-flex min-w-0 items-center gap-1.5 text-caption font-medium text-muted">
-                    <span className="h-2 w-2 shrink-0 rounded-pill" style={{ background: accent }} aria-hidden />
+                  <span className="inline-flex min-w-0 items-center gap-2 text-caption text-muted">
+                    <span className="h-2 w-2 shrink-0" style={{ background: accent }} aria-hidden />
                     <span className="truncate">{listTitle}</span>
                   </span>
                   <span><PriorityFlag priority={c.priority} withLabel /></span>
                   <span>
                     {c.dueDate ? (
-                      <span className="inline-flex whitespace-nowrap rounded-[8px] px-[7px] py-[3px] text-[11px] font-semibold" style={dueStyle}>
-                        {formatDate(c.dueDate)}
+                      <span className="mono-data inline-flex whitespace-nowrap px-2 py-1" style={dueStyle}>
+                        {formatDate(c.dueDate).toUpperCase()}
                       </span>
                     ) : (
-                      <span className="text-caption text-faint">—</span>
+                      <span className="mono-data text-faint">СРОКА НЕТ</span>
                     )}
                   </span>
-                  <span className={cn('text-right text-caption tabular-nums', total > 0 && clDone === total ? 'text-success' : 'text-muted')}>
+                  <span className={cn('mono-data text-right', total > 0 && clDone === total ? 'text-ok-ink' : 'text-muted')}>
                     {total > 0 ? `${clDone}/${total}` : '—'}
                   </span>
-                  <span>{assignees.length > 0 ? <AvatarStack users={assignees} size="sm" max={3} /> : <span className="text-caption text-faint">—</span>}</span>
+                  <span>{assignees.length > 0 ? <AvatarStack users={assignees} size="sm" max={3} /> : <span className="mono-data text-faint">—</span>}</span>
                 </button>
               )
             })}

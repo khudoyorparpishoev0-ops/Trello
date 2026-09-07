@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Menu,
-  Sun,
-  Moon,
   Plus,
   X,
   Building2,
-  Cake,
+  Gift,
   Crown,
   KeyRound,
   Send,
@@ -23,7 +20,6 @@ import {
 } from 'lucide-react'
 import type { User } from '@/types'
 import { useBoard, type BoardSummary } from '@/store/boardStore'
-import { useTheme } from '@/store/theme'
 import { useAuth } from '@/store/auth'
 import {
   fetchUsers,
@@ -35,6 +31,7 @@ import {
   type TelegramStatus,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { ScreenHeader } from '@/components/layout/ScreenHeader'
 import { IconButton } from '@/components/ui/IconButton'
 import { Button } from '@/components/ui/Button'
 import { Avatar, AvatarStack } from '@/components/ui/Avatar'
@@ -86,7 +83,6 @@ interface CompanyProps {
 export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
   const { state, boards, archivedBoards, departments, actions } = useBoard()
   const { authActive, user: authUser } = useAuth()
-  const { theme, toggle } = useTheme()
   const isAdmin = authUser?.role === 'admin'
   const [users, setUsers] = useState<AuthUser[]>([])
   const [newDept, setNewDept] = useState('')
@@ -147,25 +143,15 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="shrink-0 border-b border-line bg-bg">
-        <div className="flex items-center gap-2 px-4 py-3 sm:gap-3 sm:px-6">
-          <IconButton icon={Menu} label="Меню" size="sm" onClick={onMenuClick} className="-ml-1 shrink-0 lg:hidden" />
-          <div className="min-w-0">
-            <h1 className="truncate text-h3 font-semibold text-fg">Компания</h1>
-            <p className="hidden text-caption text-faint sm:block">{state.workspace.name}</p>
-          </div>
-          <IconButton
-            icon={theme === 'dark' ? Sun : Moon}
-            label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-            size="sm"
-            onClick={toggle}
-            className="ml-auto"
-          />
-        </div>
-      </header>
+      <ScreenHeader
+        kicker="Организация"
+        title="Компания"
+        subtitle={`${state.workspace.name} · проекты, отделы, сотрудники и уведомления`}
+        onMenuClick={onMenuClick}
+      />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-        <div className="mx-auto flex max-w-container flex-col gap-5 sm:gap-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+        <div className="mx-auto flex max-w-container flex-col gap-6">
           {/* Проекты */}
           <Section title={`Проекты · ${boards.length}`}>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -197,12 +183,12 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
                       if (e.key === 'Escape') setCreatingBoard(false)
                     }}
                     placeholder="Название проекта…"
-                    className="w-full rounded-input border border-line bg-bg px-3 py-2 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
+                    className="h-11 w-full rounded-chip border border-line-strong bg-surface px-3 text-body text-fg outline-none focus:border-brand placeholder:text-faint"
                   />
                   <button
                     type="button"
                     onClick={createBoard}
-                    className="mt-2 w-full rounded-btn bg-brand py-1.5 text-caption font-medium text-white hover:bg-[#15913f]"
+                    className="mt-2 h-11 w-full rounded-btn bg-brand-fill text-body font-semibold text-white transition-opacity hover:opacity-90"
                   >
                     Создать
                   </button>
@@ -211,9 +197,9 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
                 <button
                   type="button"
                   onClick={() => setCreatingBoard(true)}
-                  className="flex min-h-[92px] items-center justify-center gap-2 rounded-card border border-dashed border-line-strong text-small text-muted transition-colors hover:border-muted hover:text-fg"
+                  className="flex min-h-[124px] items-center justify-center gap-2 rounded-card border border-dashed border-line-strong text-body text-muted transition-colors hover:border-brand hover:text-brand-ink"
                 >
-                  <Plus size={18} strokeWidth={2} /> Новый проект
+                  <Plus size={18} strokeWidth={1.6} /> Новый проект
                 </button>
               )}
             </div>
@@ -225,16 +211,16 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
               <div className="flex flex-col divide-y divide-line">
                 {archivedBoards.map((b) => (
                   <div key={b.id} className="flex items-center gap-3 py-2.5">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-btn bg-hover text-faint">
-                      <Archive size={16} strokeWidth={2} />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-chip bg-mist text-faint">
+                      <Archive size={18} strokeWidth={1.6} />
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-small text-muted">{b.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-body text-muted">{b.name}</span>
                     <button
                       type="button"
                       onClick={() => actions.unarchiveBoard(b.id)}
-                      className="inline-flex shrink-0 items-center gap-1.5 rounded-btn bg-surface px-3 py-1.5 text-caption font-medium text-fg hover:bg-hover"
+                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-btn border border-line px-3 text-small font-semibold text-fg transition-colors hover:bg-hover"
                     >
-                      <ArchiveRestore size={14} strokeWidth={2} /> Вернуть
+                      <ArchiveRestore size={16} strokeWidth={1.6} /> Вернуть
                     </button>
                   </div>
                 ))}
@@ -247,21 +233,21 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
             <div className="flex flex-col divide-y divide-line">
               {departments.map((d) => (
                 <div key={d} className="group flex items-center gap-3 py-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-btn bg-hover text-muted">
-                    <Building2 size={16} strokeWidth={2} />
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-chip bg-mist text-muted">
+                    <Building2 size={18} strokeWidth={1.6} />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-small text-fg">{d}</span>
-                  <span className="shrink-0 text-caption text-faint">
-                    {users.filter((u) => u.department === d).length} чел.
+                  <span className="min-w-0 flex-1 truncate text-body text-fg">{d}</span>
+                  <span className="mono-data shrink-0 text-faint">
+                    {users.filter((u) => u.department === d).length} ЧЕЛ.
                   </span>
                   {authActive && (
                     <button
                       type="button"
                       onClick={() => actions.removeDepartment(d)}
                       aria-label={`Удалить отдел ${d}`}
-                      className="shrink-0 rounded-[6px] p-1 text-faint opacity-0 transition-opacity hover:text-error group-hover:opacity-100"
+                      className="shrink-0 rounded-chip p-1 text-faint transition-colors hover:text-err-ink"
                     >
-                      <X size={15} strokeWidth={2} />
+                      <X size={16} strokeWidth={1.6} />
                     </button>
                   )}
                 </div>
@@ -278,7 +264,7 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
                   }
                 }}
                 placeholder="Добавить отдел…"
-                className="flex-1 rounded-input border border-line bg-bg px-3 py-2 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
+                className="h-11 flex-1 rounded-chip border border-line-strong bg-surface px-3 text-body text-fg outline-none focus:border-brand placeholder:text-faint"
               />
               <button
                 type="button"
@@ -288,9 +274,10 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
                     setNewDept('')
                   }
                 }}
-                className="rounded-btn bg-surface px-3 py-2 text-caption font-medium text-fg hover:bg-hover"
+                aria-label="Добавить отдел"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-btn border border-line-strong text-fg transition-colors hover:bg-hover"
               >
-                <Plus size={16} strokeWidth={2} />
+                <Plus size={18} strokeWidth={1.6} />
               </button>
             </div>
           </Section>
@@ -300,40 +287,42 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
             {users.length === 0 ? (
               <Empty>Пока никто не зарегистрировался.</Empty>
             ) : (
-              <div className="-mx-1 overflow-x-auto">
-                <table className="w-full min-w-[560px] border-collapse text-small">
+              <div className="-mx-6 overflow-x-auto">
+                <table className="w-full min-w-[640px] border-collapse">
                   <thead>
-                    <tr className="text-left text-caption uppercase tracking-wide text-faint">
-                      <th className="px-2 py-2 font-semibold">Имя</th>
-                      <th className="px-2 py-2 font-semibold">E-mail</th>
-                      <th className="px-2 py-2 font-semibold">Должность</th>
-                      <th className="px-2 py-2 font-semibold">Отдел</th>
-                      {isAdmin && <th className="px-2 py-2" />}
+                    <tr className="mono-label border-b border-line text-left text-faint">
+                      <th className="px-6 pb-3 font-semibold">Имя</th>
+                      <th className="px-3 pb-3 font-semibold">E-mail</th>
+                      <th className="px-3 pb-3 font-semibold">Должность</th>
+                      <th className="px-3 pb-3 font-semibold">Отдел</th>
+                      {isAdmin && <th className="px-6 pb-3" />}
                     </tr>
                   </thead>
                   <tbody>
                     {users.map((u) => (
-                      <tr key={u.id ?? u.login} className="border-t border-line">
-                        <td className="px-2 py-2">
-                          <div className="flex items-center gap-2">
-                            <Avatar user={toUser(u)} size="sm" />
-                            <span className="truncate text-fg">{u.name}</span>
-                            {u.role === 'admin' && <Crown size={13} className="shrink-0 text-warning" />}
-                          </div>
+                      <tr key={u.id ?? u.login} className="h-14 border-b border-line last:border-0">
+                        <td className="px-6">
+                          <span className="flex items-center gap-3">
+                            <Avatar user={toUser(u)} size="md" />
+                            <span className="truncate text-body text-fg">{u.name}</span>
+                            {u.role === 'admin' && (
+                              <Crown size={14} strokeWidth={1.6} className="shrink-0 text-warn-ink" />
+                            )}
+                          </span>
                         </td>
-                        <td className="px-2 py-2 text-muted">{u.email || '—'}</td>
-                        <td className="px-2 py-2 text-muted">{u.position || '—'}</td>
-                        <td className="px-2 py-2 text-muted">{u.department || '—'}</td>
+                        <td className="px-3 text-caption text-muted">{u.email || '—'}</td>
+                        <td className="px-3 text-caption text-muted">{u.position || '—'}</td>
+                        <td className="px-3 text-caption text-muted">{u.department || '—'}</td>
                         {isAdmin && (
-                          <td className="px-2 py-2 text-right">
+                          <td className="px-6 text-right">
                             <button
                               type="button"
                               onClick={() => setResetFor(u)}
                               title="Сбросить пароль"
                               aria-label={`Сбросить пароль ${u.name}`}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-btn text-muted hover:bg-hover hover:text-fg"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-btn text-muted transition-colors hover:bg-hover hover:text-fg"
                             >
-                              <KeyRound size={15} strokeWidth={2} />
+                              <KeyRound size={16} strokeWidth={1.6} />
                             </button>
                           </td>
                         )}
@@ -351,12 +340,16 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
               <div className="flex flex-col divide-y divide-line">
                 {birthdays.map(({ u, days }) => (
                   <div key={u.id ?? u.login} className="flex items-center gap-3 py-2.5">
-                    <Avatar user={toUser(u)} size="md" />
+                    <Avatar user={toUser(u)} size="xl" />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-small font-medium text-fg">{u.name}</div>
-                      <div className="truncate text-caption text-faint">{fmtBday(u.birthday)}</div>
+                      <div className="truncate text-body text-fg">{u.name}</div>
+                      <div className="truncate text-caption text-muted">{fmtBday(u.birthday)}</div>
                     </div>
-                    <Pill tone={(days as number) <= 2 ? 'brand' : 'muted'} icon={(days as number) <= 2 ? Cake : undefined}>
+                    <Pill
+                      tone={(days as number) <= 2 ? 'ok' : 'muted'}
+                      rule={(days as number) <= 2}
+                      icon={(days as number) <= 2 ? Gift : undefined}
+                    >
                       {countdown(days as number)}
                     </Pill>
                   </div>
@@ -436,10 +429,25 @@ function ProjectCard({
   const close = () => setOpen(false)
 
   return (
-    <div className="relative flex flex-col justify-between gap-4 rounded-card border border-line bg-bg p-4 transition-colors hover:border-line-strong">
+    <div className="relative flex min-h-[124px] flex-col justify-between gap-4 rounded-card border border-line bg-mist p-4 transition-colors hover:border-line-strong">
       <div className="flex items-start justify-between gap-2">
         <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
-          <span className="block truncate text-small font-medium text-fg">{board.name}</span>
+          <span className="flex items-center gap-2">
+            <span
+              className="h-2.5 w-2.5 shrink-0"
+              style={{
+                background:
+                  board.overdue > 0 ? 'var(--warn)' : board.active > 0 ? 'var(--green)' : 'var(--line-strong)',
+              }}
+              aria-hidden
+            />
+            <span className="min-w-0 truncate text-body font-semibold text-fg">{board.name}</span>
+          </span>
+          <span className="mt-1 block truncate text-caption text-muted">
+            {board.total === 0
+              ? 'Пока нет задач'
+              : `Готово ${board.total - board.active} из ${board.total}${board.overdue > 0 ? ` · ${board.overdue} просроч.` : ''}`}
+          </span>
         </button>
         <button
           type="button"
@@ -448,7 +456,7 @@ function ProjectCard({
           aria-haspopup="menu"
           className="-mr-1.5 -mt-1.5 shrink-0 rounded-btn p-1.5 text-faint transition-colors hover:bg-hover hover:text-fg"
         >
-          <MoreVertical size={18} strokeWidth={2} />
+          <MoreVertical size={18} strokeWidth={1.6} />
         </button>
       </div>
       <button type="button" onClick={onOpen} className="flex text-left">
@@ -460,7 +468,7 @@ function ProjectCard({
           <div className="fixed inset-0 z-40" onClick={close} aria-hidden />
           <div
             role="menu"
-            className="absolute right-3 top-12 z-50 w-56 overflow-hidden rounded-modal border border-line bg-elevated py-1 shadow-md animate-scale-in"
+            className="absolute right-3 top-12 z-50 w-60 overflow-hidden rounded-card border border-line bg-elevated py-1 shadow-md animate-scale-in"
           >
             <MenuItem icon={Pencil} label="Переименовать" onClick={() => { close(); onRename() }} />
             <MenuItem icon={Users} label="Участники и роли" onClick={() => { close(); onMembers() }} />
@@ -501,11 +509,11 @@ function MenuItem({
       role="menuitem"
       onClick={onClick}
       className={cn(
-        'flex w-full items-center gap-2.5 px-3 py-2 text-left text-small transition-colors',
-        danger ? 'text-error hover:bg-error-soft' : 'text-fg hover:bg-hover',
+        'flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-small transition-colors',
+        danger ? 'text-err-ink hover:bg-err-bg' : 'text-fg hover:bg-hover',
       )}
     >
-      <Icon size={16} strokeWidth={2} className="shrink-0" />
+      <Icon size={16} strokeWidth={1.6} className="shrink-0" />
       {label}
     </button>
   )
@@ -534,9 +542,9 @@ function RenameBoardModal({
           if (e.key === 'Enter') save()
           if (e.key === 'Escape') onClose()
         }}
-        className="w-full rounded-input border border-line bg-bg px-3 py-2 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
+        className="h-11 w-full rounded-chip border border-line-strong bg-surface px-3 text-body text-fg outline-none focus:border-brand placeholder:text-faint"
       />
-      <div className="mt-4 flex gap-2">
+      <div className="mt-5 flex gap-2">
         <Button onClick={save} disabled={!name.trim()} className="flex-1">
           Сохранить
         </Button>
@@ -559,11 +567,11 @@ function DeleteBoardModal({
 }) {
   return (
     <ModalShell title="Удалить проект?" onClose={onClose}>
-      <p className="text-small text-muted">
-        Проект <span className="font-medium text-fg">«{board.name}»</span> и все его задачи будут удалены безвозвратно.
-        Если хотите сохранить — используйте «Поместить в архив».
+      <p className="text-body text-muted">
+        Проект <span className="font-semibold text-fg">«{board.name}»</span> и все его задачи будут удалены
+        безвозвратно. Если хотите сохранить — используйте «Поместить в архив».
       </p>
-      <div className="mt-4 flex gap-2">
+      <div className="mt-5 flex gap-2">
         <Button variant="danger" onClick={onConfirm} className="flex-1">
           Удалить
         </Button>
@@ -612,7 +620,7 @@ function BoardMembersModal({
     <ModalShell title="Участники проекта" onClose={onClose}>
       <p className="-mt-1 mb-3 text-caption text-muted">«{board.name}»</p>
       {candidates.length === 0 ? (
-        <div className="rounded-btn border border-dashed border-line py-6 text-center text-caption text-faint">
+        <div className="rounded-chip border border-dashed border-line px-4 py-8 text-center text-body text-muted">
           Пока некого добавить — сотрудники появятся после регистрации.
         </div>
       ) : (
@@ -624,17 +632,17 @@ function BoardMembersModal({
                 key={u.id}
                 type="button"
                 onClick={() => toggle(u.id)}
-                className="flex w-full items-center gap-3 rounded-btn px-2 py-2 text-left hover:bg-hover"
+                className="flex min-h-[44px] w-full items-center gap-3 rounded-chip px-2 py-2 text-left hover:bg-hover"
               >
-                <Avatar user={u} size="sm" />
-                <span className="min-w-0 flex-1 truncate text-small text-fg">{u.name}</span>
+                <Avatar user={u} size="md" />
+                <span className="min-w-0 flex-1 truncate text-body text-fg">{u.name}</span>
                 <span
                   className={cn(
-                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border',
-                    on ? 'border-brand bg-brand text-white' : 'border-line-strong text-transparent',
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-chip border',
+                    on ? 'border-transparent bg-brand-fill text-white' : 'border-line-strong text-transparent',
                   )}
                 >
-                  <Check size={13} strokeWidth={3} />
+                  <Check size={13} strokeWidth={2.4} />
                 </span>
               </button>
             )
@@ -667,11 +675,16 @@ function ModalShell({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} aria-hidden />
-      <div className="relative w-full max-w-[400px] rounded-modal border border-line bg-elevated p-5 shadow-md animate-scale-in">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-h3 font-semibold text-fg">{title}</h3>
-          <IconButton icon={X} label="Закрыть" size="sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 animate-fade-in"
+        style={{ background: 'var(--overlay)' }}
+        onClick={onClose}
+        aria-hidden
+      />
+      <div className="relative w-full max-w-[400px] rounded-modal border border-line bg-elevated p-6 shadow-md animate-scale-in">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="text-h3">{title}</h3>
+          <IconButton icon={X} label="Закрыть" onClick={onClose} />
         </div>
         {children}
       </div>
@@ -736,7 +749,7 @@ function TelegramCard() {
         <p className="text-small text-muted">
           Бот не настроен. Администратору нужно создать бота в{' '}
           <span className="font-medium text-fg">@BotFather</span> и указать его токен в переменной{' '}
-          <code className="rounded bg-hover px-1 py-0.5 font-mono text-caption">TELEGRAM_BOT_TOKEN</code> на сервере.
+          <code className="rounded-chip bg-mist px-1.5 py-0.5 font-mono text-caption">TELEGRAM_BOT_TOKEN</code> на сервере.
         </p>
       </Section>
     )
@@ -746,12 +759,12 @@ function TelegramCard() {
     <Section title="Telegram-уведомления">
       {status?.linked ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-success-soft text-success">
-            <Check size={18} strokeWidth={2.5} />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-chip bg-ok-bg text-ok-ink">
+            <Check size={18} strokeWidth={1.6} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-small font-medium text-fg">Telegram подключён</div>
-            <div className="text-caption text-faint">Присылаю напоминания о днях рождения и дедлайнах.</div>
+            <div className="text-body font-semibold text-fg">Telegram подключён</div>
+            <div className="text-caption text-muted">Присылаю напоминания о днях рождения и дедлайнах.</div>
           </div>
           <Button variant="secondary" onClick={disconnect} loading={working} disabled={working}>
             Отключить
@@ -768,32 +781,32 @@ function TelegramCard() {
               href={link.deepLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-btn bg-brand px-4 py-2 text-small font-medium text-white hover:bg-[#15913f]"
+              className="inline-flex h-11 items-center gap-2 rounded-btn bg-brand-fill px-4 text-body font-semibold text-white transition-opacity hover:opacity-90"
             >
-              <Send size={16} strokeWidth={2} /> Открыть в Telegram
+              <Send size={18} strokeWidth={1.6} /> Открыть в Telegram
             </a>
             <button
               type="button"
               onClick={copyLink}
               title="Скопировать ссылку"
               aria-label="Скопировать ссылку"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-btn bg-surface text-muted hover:bg-hover hover:text-fg"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-btn border border-line text-muted transition-colors hover:bg-hover hover:text-fg"
             >
-              {copied ? <Check size={16} strokeWidth={2.5} className="text-success" /> : <Copy size={16} strokeWidth={2} />}
+              {copied ? <Check size={18} strokeWidth={1.6} className="text-ok-ink" /> : <Copy size={18} strokeWidth={1.6} />}
             </button>
           </div>
-          <div className="rounded-input border border-line bg-bg px-3 py-2 font-mono text-caption text-muted break-all">
+          <div className="rounded-chip border border-line bg-mist px-3 py-2 font-mono text-caption text-muted break-all">
             {link.deepLink}
           </div>
         </div>
       ) : (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-hover text-muted">
-            <Send size={18} strokeWidth={2} />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-chip bg-mist text-muted">
+            <Send size={18} strokeWidth={1.6} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-small font-medium text-fg">Уведомления в Telegram</div>
-            <div className="text-caption text-faint">
+            <div className="text-body font-semibold text-fg">Уведомления в Telegram</div>
+            <div className="text-caption text-muted">
               Напоминания о днях рождения за 2 дня и о ближайших дедлайнах.
             </div>
           </div>
@@ -831,44 +844,53 @@ function ResetPasswordModal({ user, onClose }: { user: AuthUser; onClose: () => 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} aria-hidden />
-      <div className="relative w-full max-w-[380px] rounded-modal border border-line bg-elevated p-5 shadow-md animate-scale-in">
+      <div
+        className="absolute inset-0 animate-fade-in"
+        style={{ background: 'var(--overlay)' }}
+        onClick={onClose}
+        aria-hidden
+      />
+      <div className="relative w-full max-w-[380px] rounded-modal border border-line bg-elevated p-6 shadow-md animate-scale-in">
         <div className="mb-1 flex items-center justify-between">
-          <h3 className="text-h3 font-semibold text-fg">Сбросить пароль</h3>
-          <IconButton icon={X} label="Закрыть" size="sm" onClick={onClose} />
+          <h3 className="text-h3">Сбросить пароль</h3>
+          <IconButton icon={X} label="Закрыть" onClick={onClose} />
         </div>
-        <p className="mb-4 text-caption text-muted">Сотрудник: {user.name}</p>
+        <p className="mb-5 text-caption text-muted">Сотрудник: {user.name}</p>
 
         {result?.ok ? (
           <>
-            <div className="rounded-input bg-success-soft p-3 text-small text-success">{result.text}</div>
-            <div className="mt-3 rounded-input border border-line bg-bg px-3 py-2 font-mono text-small text-fg">
+            <div className="border-l-2 border-l-brand bg-ok-bg p-3 text-caption text-ok-ink">{result.text}</div>
+            <div className="mt-3 rounded-chip border border-line bg-mist px-3 py-2 font-mono text-body text-fg">
               {pw}
             </div>
-            <Button className="mt-4 w-full" onClick={onClose}>
+            <Button className="mt-5 w-full" onClick={onClose}>
               Готово
             </Button>
           </>
         ) : (
           <>
-            <label className="mb-1.5 block text-caption font-medium text-muted">Новый пароль</label>
+            <span className="mono-label mb-2 block text-muted">Новый пароль</span>
             <div className="flex gap-2">
               <input
                 value={pw}
                 onChange={(e) => setPw(e.target.value)}
                 placeholder="минимум 6 символов"
-                className="min-w-0 flex-1 rounded-input border border-line bg-bg px-3 py-2 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
+                className="h-11 min-w-0 flex-1 rounded-chip border border-line-strong bg-surface px-3 text-body text-fg outline-none focus:border-brand placeholder:text-faint"
               />
               <button
                 type="button"
                 onClick={gen}
-                className="shrink-0 rounded-btn bg-surface px-3 text-caption font-medium text-muted hover:text-fg"
+                className="h-11 shrink-0 rounded-btn border border-line-strong px-3 text-small font-semibold text-muted transition-colors hover:text-fg"
               >
                 Сгенерировать
               </button>
             </div>
-            {result && !result.ok && <p className="mt-2 text-caption text-error">{result.text}</p>}
-            <div className="mt-4 flex gap-2">
+            {result && !result.ok && (
+              <p className="mt-3 border-l-2 border-l-err bg-err-bg px-3 py-2 text-caption text-err-ink">
+                {result.text}
+              </p>
+            )}
+            <div className="mt-5 flex gap-2">
               <Button onClick={submit} loading={loading} disabled={loading} className="flex-1">
                 Сбросить
               </Button>
@@ -885,8 +907,8 @@ function ResetPasswordModal({ user, onClose }: { user: AuthUser; onClose: () => 
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-card border border-line bg-surface p-4 sm:p-5">
-      <h2 className="mb-4 text-caption font-semibold uppercase tracking-wide text-muted">{title}</h2>
+    <section className="rounded-card border border-line bg-surface p-6">
+      <h2 className="mono-label mb-5 text-muted">{title}</h2>
       {children}
     </section>
   )
@@ -894,7 +916,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-btn border border-dashed border-line py-8 text-center text-caption text-faint">
+    <div className="rounded-chip border border-dashed border-line px-4 py-8 text-center text-body text-muted">
       {children}
     </div>
   )
