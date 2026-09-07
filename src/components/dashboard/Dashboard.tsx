@@ -492,7 +492,9 @@ function Kpi({
         </span>
         <span className="text-body font-semibold">{label}</span>
       </div>
-      <p className={cn('mono-data mt-4 text-[44px] leading-[48px] tracking-normal', TONE_INK[tone])}>{value}</p>
+      <p data-kpi className={cn('mono-data mt-4 text-[44px] leading-[48px] tracking-normal', TONE_INK[tone])}>
+        {value}
+      </p>
       <p className="mt-1 text-small text-muted">{note}</p>
       {meter && sum > 0 && (
         <>

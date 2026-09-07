@@ -47,8 +47,17 @@ interface CoreWordmarkProps {
 export function CoreWordmark({ tone = 'onDark', className }: CoreWordmarkProps) {
   return (
     <span className={cn('block', className)}>
-      <span className={cn('mono-label block', tone === 'onDark' ? 'text-sidebar-muted' : 'text-muted')}>
-        IT&#8209;HONA
+      {/*
+        Обычный дефис, а не U+2011: неразрывный ломает поиск по странице и
+        копирование. От переноса строки защищает whitespace-nowrap.
+      */}
+      <span
+        className={cn(
+          'mono-label block whitespace-nowrap',
+          tone === 'onDark' ? 'text-sidebar-muted' : 'text-muted',
+        )}
+      >
+        IT-HONA
       </span>
       <span
         className={cn(

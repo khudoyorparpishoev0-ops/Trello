@@ -142,7 +142,7 @@ export function LoginScreen({ accountsEnabled, emailVerification, onSuccess }: L
       <form onSubmit={submit} className="w-full max-w-[400px]">
         <CoreTile size={56} className="mb-6" />
 
-        <p className="mono-label mb-1 text-muted">IT&#8209;HONA Platform</p>
+        <p className="mono-label mb-1 whitespace-nowrap text-muted">IT-HONA Platform</p>
         <h1 className="mb-2 text-h1">{mode === 'login' ? 'Вход' : 'Регистрация'}</h1>
         <p className="mb-8 text-body text-muted">
           {mode === 'login' ? 'Доступ только для команды.' : 'Аккаунт создаётся по коду с рабочей почты.'}
@@ -176,7 +176,7 @@ export function LoginScreen({ accountsEnabled, emailVerification, onSuccess }: L
                 <input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Руководитель отдела" className={inputCls} />
               </Field>
               <Field label="Отдел">
-                <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Проектирование" className={inputCls} />
+                <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Разработка" className={inputCls} />
               </Field>
               <Field
                 label="E-mail"
@@ -207,7 +207,7 @@ export function LoginScreen({ accountsEnabled, emailVerification, onSuccess }: L
               onChange={(e) => { setLoginName(e.target.value); setLoginEdited(true) }}
               autoComplete="username"
               autoFocus={mode === 'login'}
-              placeholder={mode === 'register' ? 'имя латиницей' : 'a.karimov'}
+              placeholder={mode === 'register' ? 'имя латиницей' : 'admin'}
               className={inputCls}
             />
           </Field>

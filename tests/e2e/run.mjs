@@ -73,14 +73,19 @@ const run = async () => {
     // Приоритет
     await dlg.getByRole('button', { name: 'Критический' }).click()
     await page.waitForTimeout(120)
+    const prioBg = async (name) =>
+      dlg
+        .locator('button', { hasText: name })
+        .first()
+        .evaluate((el) => getComputedStyle(el).backgroundColor)
     r.check(
-      (await dlg.locator('button', { hasText: 'Критический' }).first().getAttribute('style'))?.includes('rgb') ?? false,
+      (await prioBg('Критический')) !== (await prioBg('Низкий')),
       'приоритет меняется и подсвечивается',
     )
 
     // Срок через собственный пикер
-    await dlg.getByRole('button', { name: /Не задан/ }).click()
-    await page.getByText('ЧАС', { exact: true }).waitFor()
+    await dlg.getByRole('button', { name: /Срок не задан/ }).click()
+    await page.getByText('Час', { exact: true }).waitFor()
     r.check(await page.locator('input[type=datetime-local]').count() === 0, 'нативный datetime-local не используется')
     await dlg.locator('button', { hasText: /^20$/ }).first().click()
     await page.waitForTimeout(150)
@@ -156,7 +161,7 @@ const run = async () => {
 
     // ——— 6. Поиск и фильтры ———
     r.section('Поиск и фильтры')
-    const search = page.getByPlaceholder('Поиск карточек…')
+    const search = page.getByPlaceholder('Поиск карточек')
     await search.fill('TEST Проверка')
     await page.waitForTimeout(200)
     r.check((await page.locator('article').count()) === 1, 'поиск оставляет только совпадения')
@@ -178,7 +183,7 @@ const run = async () => {
     // ——— 7. Разделы ———
     r.section('Разделы')
     for (const [name, marker] of [
-      ['Дашборд', 'Скорость по отделам'],
+      ['Дашборд', 'Загрузка по отделам'],
       ['Команда', 'Сотрудник'],
       ['Календарь', 'событий в этом месяце'],
       ['Компания', 'Проекты'],
@@ -197,8 +202,8 @@ const run = async () => {
     // ——— 9. Дашборд: сверка чисел ———
     r.section('Дашборд')
     await page.getByText('Дашборд', { exact: true }).first().click()
-    await page.getByText('Скорость по отделам').waitFor()
-    const kpi = await page.locator('.text-\\[32px\\]').allInnerTexts()
+    await page.getByText('Загрузка по отделам').waitFor()
+    const kpi = await page.locator('[data-kpi]').allInnerTexts()
     r.check(kpi.length >= 3, `KPI отображаются (${kpi.join(' / ')})`)
     r.check(
       kpi.every((v) => !v.includes('NaN') && !v.includes('undefined')),
@@ -283,7 +288,7 @@ const run = async () => {
       'логин, изменённый вручную, не перезаписывается сменой почты',
     )
     r.check(
-      (await auth.locator('.border-error').count()) === 0,
+      (await auth.locator('.border-err').count()) === 0,
       'корпоративная почта (@ithona.tj) не подсвечивается ошибкой',
     )
     await auth.context().close()
