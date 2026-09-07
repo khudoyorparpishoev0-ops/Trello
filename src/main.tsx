@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/store/theme'
 import { BoardProvider } from '@/store/boardStore'
 import { AuthGate } from '@/store/auth'
 import { NowProvider } from '@/store/now'
+import { RouterProvider } from '@/store/router'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')!).render(
       <NowProvider>
         <AuthGate>
           <BoardProvider>
-            <App />
+            <RouterProvider>
+              <App />
+            </RouterProvider>
           </BoardProvider>
         </AuthGate>
       </NowProvider>

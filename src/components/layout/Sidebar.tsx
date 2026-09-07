@@ -16,11 +16,11 @@ import type { LucideIcon } from 'lucide-react'
 import type { User as TUser } from '@/types'
 import { useBoard, type BoardSummary } from '@/store/boardStore'
 import { useAuth } from '@/store/auth'
+import { useRouter } from '@/store/router'
+import type { AppView } from '@/lib/route'
 import { Avatar } from '@/components/ui/Avatar'
 import { CoreWordmark } from '@/components/ui/Logo'
 import { cn } from '@/lib/utils'
-
-export type AppView = 'board' | 'dashboard' | 'company' | 'calendar' | 'team' | 'reports' | 'profile'
 
 /**
  * Порядок пунктов фиксирован брендбуком (Digital §06). «Отчёты» стоят шестыми:
@@ -44,14 +44,15 @@ function projectDot(b: BoardSummary): string {
 }
 
 interface SidebarContentProps {
-  activeView: AppView
-  onSelectView: (v: AppView) => void
+  /** Закрыть мобильное меню после перехода. */
   onNavigate?: () => void
 }
 
 /** Наполнение боковой панели. Переиспользуется на десктопе и в мобильном drawer. */
-export function SidebarContent({ activeView, onSelectView, onNavigate }: SidebarContentProps) {
+export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const { state, boards, activeBoardId, actions } = useBoard()
+  const { route, navigate } = useRouter()
+  const activeView = route.view
   const { authActive, user: authUser, logout } = useAuth()
   const [creating, setCreating] = useState(false)
   const [newBoardName, setNewBoardName] = useState('')
@@ -59,10 +60,12 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
   const submitBoard = () => {
     const n = newBoardName.trim()
     if (!n) return
+    // Доска создаётся с новым id, поэтому в адрес её подставит синхронизация
+    // в App — здесь достаточно перейти в раздел доски.
     actions.addBoard(n)
     setNewBoardName('')
     setCreating(false)
-    onSelectView('board')
+    navigate({ view: 'board', boardId: null, boardView: 'board', cardId: null })
     onNavigate?.()
   }
 
@@ -80,8 +83,12 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
     : state.users[state.currentUserId]
   const roleLabel = user.role === 'admin' ? 'Администратор' : 'Участник'
 
-  const go = (view?: AppView) => {
-    if (view) onSelectView(view)
+  const go = (view: AppView) => {
+    navigate({ view, cardId: null })
+    onNavigate?.()
+  }
+  const openBoard = (boardId: string) => {
+    navigate({ view: 'board', boardId, boardView: 'board', cardId: null })
     onNavigate?.()
   }
 
@@ -154,10 +161,7 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
               <button
                 key={b.id}
                 type="button"
-                onClick={() => {
-                  actions.switchBoard(b.id)
-                  go('board')
-                }}
+                onClick={() => openBoard(b.id)}
                 className={cn(
                   'flex min-h-[56px] w-full items-center gap-3 rounded-chip px-3 py-2 text-left transition-colors ease-smooth',
                   active ? 'bg-white/[0.07] shadow-[inset_3px_0_0_#33C561]' : 'hover:bg-white/[0.04]',
@@ -229,16 +233,11 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
   )
 }
 
-interface SidebarProps {
-  activeView: AppView
-  onSelectView: (v: AppView) => void
-}
-
 /** Боковая панель десктопа: 240px, тёмно-зелёная в обеих темах (брендбук §06). */
-export function Sidebar({ activeView, onSelectView }: SidebarProps) {
+export function Sidebar() {
   return (
     <aside className="hidden w-60 shrink-0 flex-col overflow-y-auto bg-sidebar py-6 lg:flex">
-      <SidebarContent activeView={activeView} onSelectView={onSelectView} />
+      <SidebarContent />
     </aside>
   )
 }

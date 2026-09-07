@@ -3,11 +3,10 @@ import { Lock, Image as ImageIcon, Filter, Check } from 'lucide-react'
 import type { Filters } from '@/components/board/Board'
 import { BoardBackgroundModal } from '@/components/board/BoardBackgroundModal'
 import { useBoard } from '@/store/boardStore'
+import { useRouter } from '@/store/router'
 import { ScreenHeader } from './ScreenHeader'
+import type { BoardViewKind } from '@/lib/route'
 import { cn } from '@/lib/utils'
-
-/** Вид доски в сегментированном переключателе. */
-export type BoardViewKind = 'board' | 'timeline' | 'table'
 
 const VIEWS: { k: BoardViewKind; label: string }[] = [
   { k: 'board', label: 'Доска' },
@@ -19,12 +18,12 @@ interface TopBarProps {
   filters: Filters
   onFiltersChange: (f: Filters) => void
   onMenuClick: () => void
-  boardView: BoardViewKind
-  onBoardViewChange: (v: BoardViewKind) => void
 }
 
-export function TopBar({ filters, onFiltersChange, onMenuClick, boardView, onBoardViewChange }: TopBarProps) {
+export function TopBar({ filters, onFiltersChange, onMenuClick }: TopBarProps) {
   const { state } = useBoard()
+  const { route, navigate } = useRouter()
+  const boardView = route.boardView
   const [bgOpen, setBgOpen] = useState(false)
   const members = state.board.memberIds.map((id) => state.users[id]).filter(Boolean)
 
@@ -56,7 +55,7 @@ export function TopBar({ filters, onFiltersChange, onMenuClick, boardView, onBoa
               <button
                 key={k}
                 type="button"
-                onClick={() => onBoardViewChange(k)}
+                onClick={() => navigate({ boardView: k })}
                 className={cn(
                   'h-9 px-3 text-body transition-colors ease-smooth',
                   active

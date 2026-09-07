@@ -31,6 +31,7 @@ import {
   type TelegramStatus,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { buildPath } from '@/lib/route'
 import { ScreenHeader } from '@/components/layout/ScreenHeader'
 import { IconButton } from '@/components/ui/IconButton'
 import { Button } from '@/components/ui/Button'
@@ -137,7 +138,13 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
   }
   const memberUsersOf = (b: BoardSummary): User[] => b.memberIds.map((id) => state.users[id]).filter(Boolean)
   const copyLink = async (id: string) => {
-    const link = `${window.location.origin}${window.location.pathname}?board=${id}`
+    // Новый формат адреса; прежние ссылки /?board=<id> приложение по-прежнему понимает.
+    const link = `${window.location.origin}${buildPath({
+      view: 'board',
+      boardId: id,
+      boardView: 'board',
+      cardId: null,
+    })}`
     try {
       await navigator.clipboard.writeText(link)
     } catch {

@@ -39,9 +39,10 @@
 - **PWA** (`vite-plugin-pwa`), иконки в `public/`.
 - Бэкенд: Node (`node:http`, без фреймворка) + PostgreSQL + Redis + MinIO,
   прокси **Caddy**; всё поднимается `docker-compose.yml`.
-- Роутера **нет**: переключение экранов — локальный `useState` в `src/App.tsx`
-  (`AppView`). URL не меняется. Это ограничение стоит учесть при редизайне
-  (если дизайн предполагает deep-link — это отдельная задача разработки).
+- **Адресация** — на History API, без сторонней библиотеки: разбор и сборка
+  адреса в `src/lib/route.ts`, состояние в `src/store/router.tsx`. Разделы,
+  доска, вид доски и открытая карточка есть в адресе, работают ссылки,
+  «назад»/«вперёд» и перезагрузка.
 
 ### Состояние приложения (провайдеры, `src/main.tsx`)
 
@@ -60,7 +61,7 @@ ThemeProvider          // тема dark/light → data-theme на <html>
 ```
 AuthGate
 ├── LoginScreen                    ← если сервер требует вход
-└── App (каркас)
+└── App (каркас, адрес → экран)
     ├── Sidebar (desktop) / MobileNav (drawer) / MobileTabBar (телефон)
     └── Экран (AppView):
         ├── dashboard  — Дашборд

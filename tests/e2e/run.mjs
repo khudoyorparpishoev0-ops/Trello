@@ -336,7 +336,80 @@ const run = async () => {
     r.check(sentTo === '', 'на постороннюю почту код не отправляется')
     await mailAuth.context().close()
 
-    // ——— 12. Конфликт версий доски ———
+    // ——— 12. Адресация разделов ———
+    // Раньше раздел жил только в состоянии React: ссылку дать было нельзя,
+    // «назад» выходила из приложения, перезагрузка возвращала на доску.
+    r.section('Адресация')
+    const nav = await newPage()
+    await nav.goto(site.base, { waitUntil: 'domcontentloaded' })
+    await nav.getByRole('heading', { name: 'Платформа задач', level: 1 }).waitFor()
+    r.check(/\/board\//.test(new URL(nav.url()).pathname), `корень заменяется адресом доски (${new URL(nav.url()).pathname})`)
+
+    await nav.locator('aside').getByRole('button', { name: 'Отчёты' }).click()
+    await nav.getByRole('heading', { name: 'Отчёты', level: 1 }).waitFor()
+    r.check(new URL(nav.url()).pathname === '/reports', 'переход в раздел меняет адрес')
+
+    await nav.locator('aside').getByRole('button', { name: 'Настройки' }).click()
+    await nav.getByRole('heading', { name: 'Настройки', level: 1 }).waitFor()
+    await nav.goBack()
+    await nav.getByRole('heading', { name: 'Отчёты', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, 'кнопка «назад» возвращает в предыдущий раздел, а не из приложения')
+    await nav.goForward()
+    await nav.getByRole('heading', { name: 'Настройки', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, 'кнопка «вперёд» тоже работает')
+
+    // Перезагрузка возвращает туда же, где работали.
+    await nav.reload({ waitUntil: 'domcontentloaded' })
+    await nav.getByRole('heading', { name: 'Настройки', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, 'после перезагрузки открывается тот же раздел')
+
+    // Вид доски адресуется отдельным сегментом.
+    const boardPath = new URL(nav.url()).pathname
+    await nav.goto(site.base + '/dashboard', { waitUntil: 'domcontentloaded' })
+    await nav.getByRole('heading', { name: 'Дашборд', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, 'прямой переход по ссылке на раздел открывает его')
+    void boardPath
+
+    await nav.locator('aside').getByRole('button', { name: 'Доска' }).click()
+    await nav.getByRole('button', { name: 'Таблица', exact: true }).click()
+    await nav.getByText('Чек-лист', { exact: true }).first().waitFor()
+    r.check(/\/table$/.test(new URL(nav.url()).pathname), 'вид доски виден в адресе')
+
+    // Ссылка на задачу: возвращаемся к канбану через переключатель видов.
+    // Пункт «Доска» в меню сюда не годится: выбранный вид сохраняется, и это
+    // намеренно — человек вернулся в раздел, а не сбросил свою настройку.
+    await nav.locator('header').getByRole('button', { name: 'Доска', exact: true }).click()
+    await nav.locator('article').first().waitFor({ timeout: 8000 })
+    r.check(!/\/table$/.test(new URL(nav.url()).pathname), 'переключатель видов возвращает к канбану')
+    await nav.locator('article').first().click()
+    await nav.getByRole('dialog').waitFor({ timeout: 8000 })
+    const cardUrl = nav.url()
+    r.check(/[?&]card=/.test(cardUrl), 'открытая задача попадает в адрес')
+    await nav.keyboard.press('Escape')
+    await nav.waitForTimeout(200)
+    r.check((await nav.getByRole('dialog').count()) === 0, 'закрытие панели убирает задачу из адреса')
+
+    // Та же ссылка, открытая заново, показывает ту же задачу.
+    await nav.goto(cardUrl, { waitUntil: 'domcontentloaded' })
+    await nav.getByRole('dialog').waitFor({ timeout: 8000 })
+    r.check(true, 'ссылка на задачу открывает её у получателя')
+    await nav.context().close()
+
+    // Прежние ссылки вида /?board=<id> продолжают работать.
+    const legacy = await newPage()
+    await legacy.goto(site.base + '/?board=board_infra', { waitUntil: 'domcontentloaded' })
+    await legacy.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 8000 })
+    r.check(
+      new URL(legacy.url()).pathname === '/board/board_infra',
+      `прежняя ссылка /?board=<id> приводится к новому адресу (${new URL(legacy.url()).pathname})`,
+    )
+    r.check(
+      (await legacy.getByRole('heading', { name: 'Инфраструктура', level: 1 }).count()) > 0,
+      'и открывает именно ту доску',
+    )
+    await legacy.context().close()
+
+    // ——— 13. Конфликт версий доски ———
     // Доска хранится одним блобом: раньше сохранение второго участника молча
     // затирало правки первого. Теперь сервер отвечает 409, автосохранение
     // останавливается, а выбор — чью версию оставить — делает человек.
@@ -419,7 +492,7 @@ const run = async () => {
     )
     await conflictB.context().close()
 
-    // ——— 13. Отказ по правам ———
+    // ——— 14. Отказ по правам ———
     // Удаление проекта уносит все его задачи, поэтому доступно администратору.
     // Проверка на сервере: PUT принимает состояние целиком, и скрытой кнопки
     // мало. Интерфейс обязан объяснить отказ, а не уйти в «локальный режим».
@@ -453,7 +526,7 @@ const run = async () => {
     r.check((await denied.getByRole('alert').count()) === 0, 'сообщение закрывается')
     await denied.context().close()
 
-    // ——— 14. Ошибка сервера ———
+    // ——— 15. Ошибка сервера ———
     r.section('Обработка ошибок')
     const broken = await newPage({}, {
       '/api/board': (_route, send) => send({ error: 'internal_error' }, 500),

@@ -1,15 +1,12 @@
 import { LayoutDashboard, Columns3, Calendar, ListChecks, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { AppView } from './Sidebar'
+import { useRouter } from '@/store/router'
 import { cn } from '@/lib/utils'
 
 interface MobileTabBarProps {
-  activeView: AppView
+  /** Включён ли фильтр «Мои карточки» — вкладка «Задачи» это он и есть. */
   onlyMine: boolean
-  onDashboard: () => void
-  onBoard: () => void
-  onTasks: () => void
-  onCalendar: () => void
+  onToggleOnlyMine: (value: boolean) => void
   onMore: () => void
 }
 
@@ -17,16 +14,34 @@ interface MobileTabBarProps {
  * Нижняя навигация для телефонов: тёмно-зелёная панель в тон сайдбару,
  * пять пунктов, зоны нажатия ≥44px, учёт безопасной зоны снизу.
  */
-export function MobileTabBar({
-  activeView, onlyMine, onDashboard, onBoard, onTasks, onCalendar, onMore,
-}: MobileTabBarProps) {
+export function MobileTabBar({ onlyMine, onToggleOnlyMine, onMore }: MobileTabBarProps) {
+  const { route, navigate } = useRouter()
+  const activeView = route.view
   const boardMine = activeView === 'board' && onlyMine
   const boardAll = activeView === 'board' && !onlyMine
+  /**
+   * «Задачи» — это доска с включённым фильтром «Мои карточки». Фильтр в адрес
+   * не пишется: это состояние работы, а не место, куда дают ссылку.
+   */
+  const openBoard = (mine: boolean) => {
+    onToggleOnlyMine(mine)
+    navigate({ view: 'board', cardId: null })
+  }
   const tabs: { icon: LucideIcon; label: string; active: boolean; onClick: () => void }[] = [
-    { icon: LayoutDashboard, label: 'Дашборд', active: activeView === 'dashboard', onClick: onDashboard },
-    { icon: Columns3, label: 'Доска', active: boardAll, onClick: onBoard },
-    { icon: Calendar, label: 'Календарь', active: activeView === 'calendar', onClick: onCalendar },
-    { icon: ListChecks, label: 'Задачи', active: boardMine, onClick: onTasks },
+    {
+      icon: LayoutDashboard,
+      label: 'Дашборд',
+      active: activeView === 'dashboard',
+      onClick: () => navigate({ view: 'dashboard', cardId: null }),
+    },
+    { icon: Columns3, label: 'Доска', active: boardAll, onClick: () => openBoard(false) },
+    {
+      icon: Calendar,
+      label: 'Календарь',
+      active: activeView === 'calendar',
+      onClick: () => navigate({ view: 'calendar', cardId: null }),
+    },
+    { icon: ListChecks, label: 'Задачи', active: boardMine, onClick: () => openBoard(true) },
     { icon: MoreHorizontal, label: 'Ещё', active: false, onClick: onMore },
   ]
 

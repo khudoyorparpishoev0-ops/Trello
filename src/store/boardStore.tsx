@@ -503,6 +503,25 @@ function migrate(raw: unknown): AppData {
 }
 
 /** AppData → представление активной доски. */
+/**
+ * Отличаются ли состояния только полем `activeBoardId`.
+ *
+ * Открытая доска хранится в общем документе, то есть переключение раздела у
+ * одного человека — это запись, которую видят все. С адресацией (R-04) такие
+ * переключения стали частыми, а с версионированием (R-01) каждая запись ещё и
+ * повышает версию и роняет чужие сохранения в конфликт. Открытая доска у
+ * каждого своя — теперь она живёт в адресе, — поэтому ради неё на сервер не
+ * ходим. Сравнение по ссылкам: редьюсер пересоздаёт только изменившиеся срезы.
+ */
+function onlyActiveBoardChanged(prev: AppData, next: AppData): boolean {
+  if (prev === next) return false
+  for (const key of Object.keys(next) as (keyof AppData)[]) {
+    if (key === 'activeBoardId') continue
+    if (prev[key] !== next[key]) return false
+  }
+  return prev.activeBoardId !== next.activeBoardId
+}
+
 function deriveView(app: AppData): BoardState {
   const board = app.boards[app.activeBoardId] ?? app.boards[app.boardOrder[0]]
   const lists: Record<string, List> = {}
@@ -587,6 +606,11 @@ interface BoardContextValue {
   /** Сообщение об отклонённом сервером изменении (например, нет прав). */
   notice: string | null
   dismissNotice: () => void
+  /**
+   * На какой доске лежит карточка. Нужно ссылке вида `?card=<id>`: она может
+   * указывать на задачу с другой доски, и её сначала надо открыть.
+   */
+  boardIdOfCard: (cardId: string) => string | null
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -600,6 +624,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   // Всегда актуальный снимок состояния для немедленного сохранения (кнопка «Сохранить»).
   const appRef = useRef(app)
   appRef.current = app
+  /** Состояние, отправленное на сервер последним, — для отсечения лишних записей. */
+  const savedRef = useRef(app)
   /** Номер версии доски, полученный от сервера. null — сервер без версионирования. */
   const versionRef = useRef<number | null>(null)
   /**
@@ -681,9 +707,9 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       } else {
         await push(app, null)
       }
-      // Открыть доску из ссылки вида /?board=<id> (кнопка «Скопировать ссылку»).
-      const wanted = new URLSearchParams(window.location.search).get('board')
-      if (wanted && current.boards[wanted]) dispatch({ type: 'SWITCH_BOARD', boardId: wanted })
+      // Доску из адреса подставляет роутер (App), здесь только отмечаем
+      // загрузку: до неё автосохранение не должно срабатывать.
+      void current
       loadedRef.current = true
       // Подтянуть свежие профили (фото, отделы) зарегистрированных сотрудников.
       void fetchUsers().then((list) => {
@@ -711,11 +737,15 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     if (!loadedRef.current) return
     if (skipSaveRef.current) {
       skipSaveRef.current = false
+      savedRef.current = app
       return
     }
     // В режиме конфликта автосохранение молчит: решение принимает человек.
     if (mode === 'conflict') return
+    // Смена открытой доски — не повод писать на сервер (см. onlyActiveBoardChanged).
+    if (onlyActiveBoardChanged(savedRef.current, app)) return
     const t = setTimeout(() => {
+      savedRef.current = app
       void push(app, versionRef.current)
     }, 700)
     return () => clearTimeout(t)
@@ -790,6 +820,20 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     [app.boards, app.lists, app.cards],
   )
 
+  const boardIdOfCard = useCallback(
+    (cardId: string) => {
+      for (const boardId of app.boardOrder) {
+        const board = app.boards[boardId]
+        if (!board) continue
+        for (const listId of board.listIds) {
+          if (app.lists[listId]?.cardIds.includes(cardId)) return boardId
+        }
+      }
+      return null
+    },
+    [app.boardOrder, app.boards, app.lists],
+  )
+
   const boards = useMemo(
     () => app.boardOrder.filter((id) => app.boards[id] && !app.boards[id].archived).map(summarize),
     [app.boardOrder, app.boards, summarize],
@@ -813,6 +857,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       overwriteServer,
       notice,
       dismissNotice: () => setNotice(null),
+      boardIdOfCard,
     }),
     [
       state,
@@ -826,6 +871,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       reloadFromServer,
       overwriteServer,
       notice,
+      boardIdOfCard,
     ],
   )
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
