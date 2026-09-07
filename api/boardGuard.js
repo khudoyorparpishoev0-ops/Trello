@@ -84,3 +84,35 @@ export function versionConflict(clientVersion, serverVersion) {
   if (serverVersion === null || serverVersion === undefined) return false
   return Number(clientVersion) !== Number(serverVersion)
 }
+
+/**
+ * Названия досок, исчезнувших из состояния.
+ *
+ * Архивация доску не удаляет — она остаётся в `boards` с флагом `archived`,
+ * поэтому под ограничение не попадает. Считается именно пропажа ключа, то
+ * есть удаление доски вместе со всеми её списками и карточками.
+ */
+export function removedBoards(prevData, newData) {
+  if (!isDict(prevData) || !isDict(prevData.boards)) return []
+  const next = isDict(newData) && isDict(newData.boards) ? newData.boards : {}
+  const out = []
+  for (const [id, board] of Object.entries(prevData.boards)) {
+    if (!(id in next)) out.push(board?.name || id)
+  }
+  return out
+}
+
+/**
+ * Можно ли этому участнику удалять проекты.
+ *
+ * Быстрая мера по R-02: удаление проекта уносит все его задачи, а восстановить
+ * их можно только из снимков истории. До полноценной матрицы прав удаление
+ * оставлено администратору.
+ *
+ * Актора нет — режим открытого доступа, ролей в системе нет вообще: ограничивать
+ * нечем и некого, поведение остаётся прежним.
+ */
+export function canDeleteBoards(actor) {
+  if (!actor) return true
+  return actor.role === 'admin'
+}

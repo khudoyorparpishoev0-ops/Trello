@@ -10,6 +10,8 @@ import {
   shouldSnapshot,
   parseVersion,
   versionConflict,
+  removedBoards,
+  canDeleteBoards,
 } from '../../api/boardGuard.js'
 import {
   limiterKey,
@@ -203,4 +205,48 @@ test('клиент без версии пишет как раньше (фрон�
 test('на сервере версии ещё нет — сверять не с чем', () => {
   assert.equal(versionConflict(1, null), false)
   assert.equal(versionConflict(1, undefined), false)
+})
+
+// ——— Удаление проектов: только администратор (R-02) ———
+
+const withBoards = (ids: string[]) => ({
+  boards: Object.fromEntries(ids.map((id) => [id, { id, name: `Проект ${id}`, archived: false }])),
+  lists: {},
+  cards: {},
+})
+
+test('исчезнувшая доска распознаётся как удалённая', () => {
+  assert.deepEqual(removedBoards(withBoards(['a', 'b']), withBoards(['a'])), ['Проект b'])
+})
+
+test('без удалений список пуст', () => {
+  assert.deepEqual(removedBoards(withBoards(['a', 'b']), withBoards(['a', 'b'])), [])
+  assert.deepEqual(removedBoards(withBoards(['a']), withBoards(['a', 'b'])), [])
+})
+
+test('архивация — не удаление: доска остаётся в состоянии', () => {
+  const prev = withBoards(['a'])
+  const next = { ...withBoards(['a']) }
+  next.boards.a = { ...next.boards.a, archived: true }
+  assert.deepEqual(removedBoards(prev, next), [])
+})
+
+test('прежнего состояния нет — удалять было нечего', () => {
+  assert.deepEqual(removedBoards(null, withBoards(['a'])), [])
+  assert.deepEqual(removedBoards(undefined, withBoards(['a'])), [])
+})
+
+test('удалять проекты может администратор', () => {
+  assert.equal(canDeleteBoards({ role: 'admin' }), true)
+})
+
+test('участник и наблюдатель — не могут', () => {
+  assert.equal(canDeleteBoards({ role: 'member' }), false)
+  assert.equal(canDeleteBoards({ role: 'observer' }), false)
+  assert.equal(canDeleteBoards({}), false)
+})
+
+test('режим открытого доступа: актора нет, ролей нет — поведение прежнее', () => {
+  assert.equal(canDeleteBoards(null), true)
+  assert.equal(canDeleteBoards(undefined), true)
 })

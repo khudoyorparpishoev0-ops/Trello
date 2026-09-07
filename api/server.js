@@ -11,7 +11,14 @@ import crypto from 'node:crypto'
 import pg from 'pg'
 import Redis from 'ioredis'
 import { initTelegram, getBotUsername, telegramEnabled, notifyAssignments, notifyDueChanges } from './telegram.js'
-import { validateBoardPayload, shouldSnapshot, parseVersion, versionConflict } from './boardGuard.js'
+import {
+  validateBoardPayload,
+  shouldSnapshot,
+  parseVersion,
+  versionConflict,
+  removedBoards,
+  canDeleteBoards,
+} from './boardGuard.js'
 import { limiterKey, retryAfter, registerFailure, registerSuccess } from './rateLimit.js'
 import { allowedDomains, isEmailAllowed, domainsHint } from './emailDomains.js'
 import { mailerEnabled, sendVerificationCode, verifyMailer } from './mailer.js'
@@ -574,6 +581,18 @@ async function handle(req, res) {
       // Ничего не пишем — иначе правки первого исчезнут молча.
       if (versionConflict(clientVersion, prevVersion)) {
         return json(res, 409, { error: 'version_conflict', version: Number(prevVersion) })
+      }
+
+      // Удаление проекта уносит все его задачи, поэтому доступно только
+      // администратору. Проверка именно здесь, а не только в интерфейсе:
+      // PUT принимает состояние целиком, и скрытая кнопка ничего не защищает.
+      const deleted = removedBoards(prevData, newData)
+      if (deleted.length && !canDeleteBoards(actor)) {
+        return json(res, 403, {
+          error: 'forbidden_board_delete',
+          detail: 'удалять проекты может только администратор',
+          boards: deleted,
+        })
       }
 
       // Снимок предыдущего состояния (разреженно; при заметной потере карточек — всегда).

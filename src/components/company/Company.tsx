@@ -84,6 +84,12 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
   const { state, boards, archivedBoards, departments, actions } = useBoard()
   const { authActive, user: authUser } = useAuth()
   const isAdmin = authUser?.role === 'admin'
+  /**
+   * Право удалять проекты. Повторяет правило сервера (`canDeleteBoards`):
+   * при выключенном входе ролей в системе нет вообще, ограничивать нечем —
+   * иначе в открытом режиме кнопка пропала бы без причины.
+   */
+  const canDeleteProjects = !authActive || isAdmin
   const [users, setUsers] = useState<AuthUser[]>([])
   const [newDept, setNewDept] = useState('')
   const [newBoard, setNewBoard] = useState('')
@@ -161,7 +167,12 @@ export function Company({ onMenuClick, onNavigateBoard }: CompanyProps) {
                   board={b}
                   memberUsers={memberUsersOf(b)}
                   copied={copiedId === b.id}
-                  canDelete={boards.length > 1}
+                  canDelete={canDeleteProjects && boards.length > 1}
+                  deleteHint={
+                    !canDeleteProjects
+                      ? 'Удалять проекты может только администратор'
+                      : 'Последний проект удалить нельзя'
+                  }
                   onOpen={() => openBoard(b.id)}
                   onRename={() => setRenameFor(b)}
                   onMembers={() => setMembersFor(b)}
@@ -405,6 +416,7 @@ function ProjectCard({
   memberUsers,
   copied,
   canDelete,
+  deleteHint,
   onOpen,
   onRename,
   onMembers,
@@ -417,6 +429,8 @@ function ProjectCard({
   memberUsers: User[]
   copied: boolean
   canDelete: boolean
+  /** Почему удаление недоступно — подсказка в меню. */
+  deleteHint?: string
   onOpen: () => void
   onRename: () => void
   onMembers: () => void
@@ -479,11 +493,24 @@ function ProjectCard({
               label={copied ? 'Скопировано ✓' : 'Скопировать ссылку'}
               onClick={onCopyLink}
             />
-            {canDelete && (
-              <>
-                <div className="my-1 border-t border-line" />
-                <MenuItem icon={Trash2} label="Удалить" danger onClick={() => { close(); onDelete() }} />
-              </>
+            <div className="my-1 border-t border-line" />
+            {canDelete ? (
+              <MenuItem icon={Trash2} label="Удалить" danger onClick={() => { close(); onDelete() }} />
+            ) : (
+              /*
+                Пункт не прячем, а гасим с причиной: исчезнувшая команда
+                выглядит сбоем интерфейса, а не ограничением прав. Настоящая
+                защита всё равно на сервере — PUT принимает состояние целиком.
+              */
+              <span className="block px-3 py-2">
+                <span className="flex items-center gap-2.5 text-small text-faint">
+                  <Trash2 size={16} strokeWidth={1.6} className="shrink-0" />
+                  Удалить
+                </span>
+                <span className="mt-1 block pl-[26px] text-caption text-faint">
+                  {deleteHint ?? 'Недоступно'}. Проект можно поместить в архив.
+                </span>
+              </span>
             )}
           </div>
         </>

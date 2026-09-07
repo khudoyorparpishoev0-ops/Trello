@@ -33,7 +33,7 @@ npm run preview    # предпросмотр собранной версии
 npm run lint       # ESLint
 npm run verify     # линтер + типы + модульные тесты + сборка
 npm run test:e2e   # сценарии в браузере на собранном dist
-npm run test:db    # версионирование доски на настоящем PostgreSQL
+npm run test:db    # запись доски на настоящем PostgreSQL (версии, права)
 ```
 
 `test:db` нужна поднятая база (`TEST_DATABASE_URL`, по умолчанию

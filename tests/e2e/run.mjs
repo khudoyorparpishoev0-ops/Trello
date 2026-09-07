@@ -419,7 +419,41 @@ const run = async () => {
     )
     await conflictB.context().close()
 
-    // ——— 13. Ошибка сервера ———
+    // ——— 13. Отказ по правам ———
+    // Удаление проекта уносит все его задачи, поэтому доступно администратору.
+    // Проверка на сервере: PUT принимает состояние целиком, и скрытой кнопки
+    // мало. Интерфейс обязан объяснить отказ, а не уйти в «локальный режим».
+    r.section('Отказ по правам')
+    const denied = await newPage({}, {
+      '/api/board': (route, send) => {
+        if (route.request().method() === 'GET') return send(null)
+        return send(
+          {
+            error: 'forbidden_board_delete',
+            detail: 'удалять проекты может только администратор',
+            boards: ['Склад · Периметр'],
+          },
+          403,
+        )
+      },
+    }, false)
+    await denied.goto(site.base, { waitUntil: 'domcontentloaded' })
+    const deniedBanner = denied.getByRole('alert')
+    await deniedBanner.waitFor({ timeout: 8000 })
+    r.check(
+      (await deniedBanner.getByText(/Изменение отклонено/).count()) > 0,
+      'отказ по правам объясняется, а не выглядит потерей связи',
+    )
+    r.check(
+      (await deniedBanner.getByText(/только администратор/).count()) > 0,
+      'в сообщении названа причина и восстановленный проект',
+    )
+    await deniedBanner.getByRole('button', { name: 'Скрыть сообщение' }).click()
+    await denied.waitForTimeout(200)
+    r.check((await denied.getByRole('alert').count()) === 0, 'сообщение закрывается')
+    await denied.context().close()
+
+    // ——— 14. Ошибка сервера ———
     r.section('Обработка ошибок')
     const broken = await newPage({}, {
       '/api/board': (_route, send) => send({ error: 'internal_error' }, 500),

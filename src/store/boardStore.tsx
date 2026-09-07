@@ -584,6 +584,9 @@ interface BoardContextValue {
   reloadFromServer: () => Promise<void>
   /** Перезаписать сервер своей версией, отказавшись от чужих правок. */
   overwriteServer: () => Promise<boolean>
+  /** Сообщение об отклонённом сервером изменении (например, нет прав). */
+  notice: string | null
+  dismissNotice: () => void
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -591,6 +594,8 @@ const BoardContext = createContext<BoardContextValue | null>(null)
 export function BoardProvider({ children }: { children: ReactNode }) {
   const [app, dispatch] = useReducer(appReducer, undefined, createSeedState)
   const [mode, setMode] = useState<SyncMode>('loading')
+  /** Сервер отклонил изменение (нет прав) — показываем причину, а не «локальный режим». */
+  const [notice, setNotice] = useState<string | null>(null)
   const loadedRef = useRef(false)
   // Всегда актуальный снимок состояния для немедленного сохранения (кнопка «Сохранить»).
   const appRef = useRef(app)
@@ -604,39 +609,57 @@ export function BoardProvider({ children }: { children: ReactNode }) {
    */
   const skipSaveRef = useRef(false)
 
-  /** Записать состояние на сервер и обновить режим по результату. */
-  const push = useCallback(async (state: AppData, version: number | null) => {
-    const r = await saveBoard(state, version)
-    if (r.ok) {
-      versionRef.current = r.version
-      setMode('server')
-      return true
-    }
-    if (r.conflict) {
-      // Версию сервера запоминаем: она понадобится, если пользователь решит
-      // всё-таки записать свою версию поверх чужой.
-      versionRef.current = r.version
-      setMode('conflict')
-      return false
-    }
-    setMode('local')
-    return false
-  }, [])
-
-  const saveNow = useCallback(() => push(appRef.current, versionRef.current), [push])
-
   /** Взять версию сервера. Несохранённые правки при этом теряются осознанно. */
-  const reloadFromServer = useCallback(async () => {
+  const pull = useCallback(async () => {
     const snapshot = await loadBoard()
     if (!snapshot) {
       setMode('local')
-      return
+      return false
     }
     versionRef.current = snapshot.version
     skipSaveRef.current = true
     dispatch({ type: 'HYDRATE', data: migrate(snapshot.data) })
     setMode('server')
+    return true
   }, [])
+
+  /** Записать состояние на сервер и обновить режим по результату. */
+  const push = useCallback(
+    async (state: AppData, version: number | null) => {
+      const r = await saveBoard(state, version)
+      if (r.ok) {
+        versionRef.current = r.version
+        setNotice(null)
+        setMode('server')
+        return true
+      }
+      if (r.kind === 'conflict') {
+        // Версию сервера запоминаем: она понадобится, если пользователь решит
+        // всё-таки записать свою версию поверх чужой.
+        versionRef.current = r.version
+        setMode('conflict')
+        return false
+      }
+      if (r.kind === 'forbidden') {
+        // Сервер отклонил изменение целиком, значит на экране состояние,
+        // которого нет на сервере. Забираем серверное — иначе удалённый
+        // проект остался бы пропавшим с экрана, но живым в базе.
+        setNotice(r.message)
+        await pull()
+        return false
+      }
+      setMode('local')
+      return false
+    },
+    [pull],
+  )
+
+  const saveNow = useCallback(() => push(appRef.current, versionRef.current), [push])
+
+  const reloadFromServer = useCallback(async () => {
+    setNotice(null)
+    await pull()
+  }, [pull])
 
   /** Записать свою версию поверх чужой — по явному решению пользователя. */
   const overwriteServer = useCallback(async () => {
@@ -788,6 +811,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       saveNow,
       reloadFromServer,
       overwriteServer,
+      notice,
+      dismissNotice: () => setNotice(null),
     }),
     [
       state,
@@ -800,6 +825,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       saveNow,
       reloadFromServer,
       overwriteServer,
+      notice,
     ],
   )
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>

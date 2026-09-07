@@ -279,11 +279,16 @@ export async function loadBoard(): Promise<BoardSnapshot | null> {
   }
 }
 
-/** Результат сохранения. `conflict` — доску успел изменить кто-то другой. */
+/**
+ * Результат сохранения.
+ * `conflict` — доску успел изменить кто-то другой;
+ * `forbidden` — сервер отклонил изменение по правам (удаление проекта).
+ */
 export type SaveResult =
   | { ok: true; version: number | null }
-  | { ok: false; conflict: true; version: number | null }
-  | { ok: false; conflict: false }
+  | { ok: false; kind: 'conflict'; version: number | null }
+  | { ok: false; kind: 'forbidden'; message: string }
+  | { ok: false; kind: 'error' }
 
 /**
  * Сохранить состояние на сервер.
@@ -304,13 +309,25 @@ export async function saveBoard(state: AppData, version: number | null = null): 
     if (res.status === 409) {
       const body = await res.json().catch(() => null)
       const v = typeof body?.version === 'number' ? body.version : readVersion(res)
-      return { ok: false, conflict: true, version: v }
+      return { ok: false, kind: 'conflict', version: v }
     }
-    if (!res.ok) return { ok: false, conflict: false }
+    if (res.status === 403) {
+      const body = await res.json().catch(() => null)
+      const names = Array.isArray(body?.boards) ? body.boards.filter((n: unknown) => typeof n === 'string') : []
+      const detail = typeof body?.detail === 'string' ? body.detail : 'изменение отклонено'
+      return {
+        ok: false,
+        kind: 'forbidden',
+        message: names.length
+          ? `Удалять проекты может только администратор. «${names.join('», «')}» восстановлен${names.length > 1 ? 'ы' : ''}.`
+          : `Изменение отклонено: ${detail}.`,
+      }
+    }
+    if (!res.ok) return { ok: false, kind: 'error' }
     const body = await res.json().catch(() => null)
     const v = typeof body?.version === 'number' ? body.version : readVersion(res)
     return { ok: true, version: v }
   } catch {
-    return { ok: false, conflict: false }
+    return { ok: false, kind: 'error' }
   }
 }
