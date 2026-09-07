@@ -1,9 +1,9 @@
-// Проверка полезной нагрузки доски и снимки истории.
+// Проверка полезной нагрузки доски, версионирование и снимки истории.
 //
 // Доска хранится одним JSON-блобом и перезаписывается целиком, поэтому
 // некорректное тело запроса (например `{}` или строка) затирало состояние всей
 // компании: фронтенд, не найдя в ответе ожидаемых полей, считал доску пустой.
-// Здесь — структурная проверка и снимки предыдущего состояния для отката.
+// Здесь — структурная проверка, сверка версий и снимки предыдущего состояния.
 
 /** Является ли значение обычным объектом-словарём. */
 function isDict(v) {
@@ -53,4 +53,34 @@ export function shouldSnapshot(prevData, newData, lastSnapshotAt, now = Date.now
   if (before > 0 && after < before * SHRINK_RATIO) return true
   if (!lastSnapshotAt) return true
   return now - new Date(lastSnapshotAt).getTime() >= SNAPSHOT_INTERVAL_MS
+}
+
+/**
+ * Разбор версии доски из заголовка `X-Board-Version`.
+ * Возвращает целое число либо null, если заголовка нет или он не число:
+ * различать «клиент не прислал версию» и «прислал ноль» обязательно.
+ */
+export function parseVersion(raw) {
+  if (raw === undefined || raw === null) return null
+  const s = String(raw).trim()
+  if (!s) return null
+  if (!/^\d+$/.test(s)) return null
+  return Number(s)
+}
+
+/**
+ * Нужно ли отклонить запись как конфликт версий.
+ *
+ * Версия отсутствует у клиента — записываем: так ведёт себя фронтенд из
+ * кеша браузера, который выкачали до обновления. Отклонять его значило бы
+ * сломать работу людям в момент выкладки, а поведение при этом остаётся тем
+ * же, что было до версионирования.
+ *
+ * Версии нет на сервере (строка от прежней схемы) — тоже записываем: сверять
+ * не с чем, а первая же запись проставит номер.
+ */
+export function versionConflict(clientVersion, serverVersion) {
+  if (clientVersion === null || clientVersion === undefined) return false
+  if (serverVersion === null || serverVersion === undefined) return false
+  return Number(clientVersion) !== Number(serverVersion)
 }

@@ -21,7 +21,12 @@ import { isListDone } from '@/lib/design'
  * состояние сохраняется на сервере; при недоступности — работаем локально.
  */
 
-export type SyncMode = 'loading' | 'server' | 'local'
+/**
+ * Режим синхронизации.
+ * `conflict` — доску изменил другой участник, автосохранение остановлено до
+ * решения пользователя: иначе наши правки затёрли бы чужие (или наоборот).
+ */
+export type SyncMode = 'loading' | 'server' | 'local' | 'conflict'
 
 type Action =
   | { type: 'HYDRATE'; data: AppData }
@@ -575,6 +580,10 @@ interface BoardContextValue {
   departments: string[]
   /** Немедленно сохранить состояние на сервере (кнопка «Сохранить»). */
   saveNow: () => Promise<boolean>
+  /** Загрузить версию с сервера, отказавшись от несохранённых правок. */
+  reloadFromServer: () => Promise<void>
+  /** Перезаписать сервер своей версией, отказавшись от чужих правок. */
+  overwriteServer: () => Promise<boolean>
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -586,25 +595,68 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   // Всегда актуальный снимок состояния для немедленного сохранения (кнопка «Сохранить»).
   const appRef = useRef(app)
   appRef.current = app
+  /** Номер версии доски, полученный от сервера. null — сервер без версионирования. */
+  const versionRef = useRef<number | null>(null)
+  /**
+   * Пропустить одно автосохранение. Ставится, когда состояние пришло с сервера:
+   * сохранять только что загруженное бессмысленно, а лишняя запись подняла бы
+   * версию и устроила конфликт остальным участникам.
+   */
+  const skipSaveRef = useRef(false)
 
-  const saveNow = useCallback(async () => {
-    const ok = await saveBoard(appRef.current)
-    setMode(ok ? 'server' : 'local')
-    return ok
+  /** Записать состояние на сервер и обновить режим по результату. */
+  const push = useCallback(async (state: AppData, version: number | null) => {
+    const r = await saveBoard(state, version)
+    if (r.ok) {
+      versionRef.current = r.version
+      setMode('server')
+      return true
+    }
+    if (r.conflict) {
+      // Версию сервера запоминаем: она понадобится, если пользователь решит
+      // всё-таки записать свою версию поверх чужой.
+      versionRef.current = r.version
+      setMode('conflict')
+      return false
+    }
+    setMode('local')
+    return false
   }, [])
+
+  const saveNow = useCallback(() => push(appRef.current, versionRef.current), [push])
+
+  /** Взять версию сервера. Несохранённые правки при этом теряются осознанно. */
+  const reloadFromServer = useCallback(async () => {
+    const snapshot = await loadBoard()
+    if (!snapshot) {
+      setMode('local')
+      return
+    }
+    versionRef.current = snapshot.version
+    skipSaveRef.current = true
+    dispatch({ type: 'HYDRATE', data: migrate(snapshot.data) })
+    setMode('server')
+  }, [])
+
+  /** Записать свою версию поверх чужой — по явному решению пользователя. */
+  const overwriteServer = useCallback(async () => {
+    // Берём текущую версию сервера, иначе запись снова упрётся в конфликт.
+    const snapshot = await loadBoard()
+    return push(appRef.current, snapshot?.version ?? null)
+  }, [push])
 
   useEffect(() => {
     let cancelled = false
-    void loadBoard().then(async (data) => {
+    void loadBoard().then(async (snapshot) => {
       if (cancelled) return
       let current: AppData = app
-      if (data) {
-        current = migrate(data)
+      if (snapshot) {
+        current = migrate(snapshot.data)
+        versionRef.current = snapshot.version
         dispatch({ type: 'HYDRATE', data: current })
         setMode('server')
       } else {
-        const ok = await saveBoard(app)
-        setMode(ok ? 'server' : 'local')
+        await push(app, null)
       }
       // Открыть доску из ссылки вида /?board=<id> (кнопка «Скопировать ссылку»).
       const wanted = new URLSearchParams(window.location.search).get('board')
@@ -634,11 +686,17 @@ export function BoardProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loadedRef.current) return
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false
+      return
+    }
+    // В режиме конфликта автосохранение молчит: решение принимает человек.
+    if (mode === 'conflict') return
     const t = setTimeout(() => {
-      void saveBoard(app).then((ok) => setMode(ok ? 'server' : 'local'))
+      void push(app, versionRef.current)
     }, 700)
     return () => clearTimeout(t)
-  }, [app])
+  }, [app, mode, push])
 
   const actions = useMemo<BoardActions>(
     () => ({
@@ -719,8 +777,30 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo(
-    () => ({ state, actions, mode, boards, archivedBoards, activeBoardId: app.activeBoardId, departments: app.departments, saveNow }),
-    [state, actions, mode, boards, archivedBoards, app.activeBoardId, app.departments, saveNow],
+    () => ({
+      state,
+      actions,
+      mode,
+      boards,
+      archivedBoards,
+      activeBoardId: app.activeBoardId,
+      departments: app.departments,
+      saveNow,
+      reloadFromServer,
+      overwriteServer,
+    }),
+    [
+      state,
+      actions,
+      mode,
+      boards,
+      archivedBoards,
+      app.activeBoardId,
+      app.departments,
+      saveNow,
+      reloadFromServer,
+      overwriteServer,
+    ],
   )
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
 }

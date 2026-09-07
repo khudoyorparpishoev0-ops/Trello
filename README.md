@@ -31,7 +31,14 @@ npm run dev        # http://localhost:5173
 npm run build      # проверка типов (tsc) + продакшн-сборка (vite)
 npm run preview    # предпросмотр собранной версии
 npm run lint       # ESLint
+npm run verify     # линтер + типы + модульные тесты + сборка
+npm run test:e2e   # сценарии в браузере на собранном dist
+npm run test:db    # версионирование доски на настоящем PostgreSQL
 ```
+
+`test:db` нужна поднятая база (`TEST_DATABASE_URL`, по умолчанию
+`postgres://ithona:test@127.0.0.1:5432/ithona_test`). Без неё тест не падает,
+а сообщает, что пропущен.
 
 ## Возможности прототипа
 

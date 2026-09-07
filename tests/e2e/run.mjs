@@ -336,7 +336,90 @@ const run = async () => {
     r.check(sentTo === '', 'на постороннюю почту код не отправляется')
     await mailAuth.context().close()
 
-    // ——— 12. Ошибка сервера ———
+    // ——— 12. Конфликт версий доски ———
+    // Доска хранится одним блобом: раньше сохранение второго участника молча
+    // затирало правки первого. Теперь сервер отвечает 409, автосохранение
+    // останавливается, а выбор — чью версию оставить — делает человек.
+    r.section('Конфликт версий')
+
+    const remoteBoard = {
+      workspace: { id: 'w1', name: 'IT-HONA', boards: [{ id: 'b1', name: 'Удалённая доска' }] },
+      users: { u1: { id: 'u1', name: 'Тест Тестов', initials: 'ТТ', color: '#186B36' } },
+      currentUserId: 'u1',
+      boards: {
+        b1: { id: 'b1', name: 'Удалённая доска', visibility: 'private', listIds: ['l1'], memberIds: ['u1'] },
+      },
+      boardOrder: ['b1'],
+      activeBoardId: 'b1',
+      lists: { l1: { id: 'l1', title: 'To Do', cardIds: ['c1'] } },
+      cards: {
+        c1: {
+          id: 'c1',
+          title: 'TEST карточка с сервера',
+          labelIds: [],
+          assigneeIds: [],
+          priority: 'medium',
+          checklists: [],
+          comments: [],
+          attachments: [],
+          createdAt: new Date().toISOString(),
+          code: 500,
+        },
+      },
+      labels: {},
+      departments: [],
+    }
+
+    // Сценарий А: взять версию сервера.
+    let served = 0
+    const conflictA = await newPage({}, {
+      '/api/board': (route, send) => {
+        if (route.request().method() !== 'GET') return send({ error: 'version_conflict', version: 42 }, 409)
+        // Первый GET — доски нет (клиент попробует записать свою и получит 409),
+        // следующий — уже чужая версия, которую и заберёт кнопка «Обновить».
+        return served++ === 0 ? send(null) : send(remoteBoard)
+      },
+    }, false)
+    await conflictA.goto(site.base, { waitUntil: 'domcontentloaded' })
+    const bannerA = conflictA.getByRole('alert')
+    await bannerA.waitFor({ timeout: 8000 })
+    r.check(true, 'при 409 показывается плашка конфликта, а не молчаливая перезапись')
+    r.check(
+      (await conflictA.getByRole('heading', { name: 'Платформа задач', level: 1 }).count()) > 0,
+      'свои правки при конфликте остаются на экране',
+    )
+    await bannerA.getByRole('button', { name: 'Обновить' }).click()
+    await conflictA.getByRole('heading', { name: 'Удалённая доска', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, '«Обновить» подставляет версию сервера')
+    r.check(
+      (await conflictA.getByText('TEST карточка с сервера').count()) > 0,
+      'после обновления видны чужие карточки',
+    )
+    r.check((await conflictA.getByRole('alert').count()) === 0, 'плашка конфликта исчезает после обновления')
+    await conflictA.context().close()
+
+    // Сценарий Б: записать свою версию поверх чужой.
+    let puts = 0
+    const conflictB = await newPage({}, {
+      '/api/board': (route, send) => {
+        if (route.request().method() === 'GET') return send(null)
+        // Первая запись конфликтует, повторная (осознанная) — проходит.
+        return puts++ === 0 ? send({ error: 'version_conflict', version: 42 }, 409) : send({ ok: true, version: 43 })
+      },
+    }, false)
+    await conflictB.goto(site.base, { waitUntil: 'domcontentloaded' })
+    const bannerB = conflictB.getByRole('alert')
+    await bannerB.waitFor({ timeout: 8000 })
+    await bannerB.getByRole('button', { name: 'Записать мою версию' }).click()
+    await conflictB.waitForTimeout(600)
+    r.check((await conflictB.getByRole('alert').count()) === 0, '«Записать мою версию» снимает конфликт')
+    r.check(
+      (await conflictB.getByRole('heading', { name: 'Платформа задач', level: 1 }).count()) > 0,
+      'после записи своей версии на экране остаётся она, а не чужая',
+    )
+    await conflictB.context().close()
+
+    // ——— 13. Ошибка сервера ———
     r.section('Обработка ошибок')
     const broken = await newPage({}, {
       '/api/board': (_route, send) => send({ error: 'internal_error' }, 500),

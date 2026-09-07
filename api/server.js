@@ -11,7 +11,7 @@ import crypto from 'node:crypto'
 import pg from 'pg'
 import Redis from 'ioredis'
 import { initTelegram, getBotUsername, telegramEnabled, notifyAssignments, notifyDueChanges } from './telegram.js'
-import { validateBoardPayload, shouldSnapshot } from './boardGuard.js'
+import { validateBoardPayload, shouldSnapshot, parseVersion, versionConflict } from './boardGuard.js'
 import { limiterKey, retryAfter, registerFailure, registerSuccess } from './rateLimit.js'
 import { allowedDomains, isEmailAllowed, domainsHint } from './emailDomains.js'
 import { mailerEnabled, sendVerificationCode, verifyMailer } from './mailer.js'
@@ -51,6 +51,9 @@ const redis = new Redis(process.env.REDIS_URL ?? 'redis://redis:6379', {
 async function ensureSchema() {
   await pool.query(`CREATE TABLE IF NOT EXISTS board_state (
     id text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`)
+  // Номер версии доски: растёт на каждой записи, по нему ловится конфликт
+  // одновременного редактирования (см. GET/PUT /api/board).
+  await pool.query(`ALTER TABLE board_state ADD COLUMN IF NOT EXISTS version bigint NOT NULL DEFAULT 1`)
   await pool.query(`CREATE TABLE IF NOT EXISTS users (
     id text PRIMARY KEY,
     login text UNIQUE NOT NULL,
@@ -543,8 +546,11 @@ async function handle(req, res) {
     const actor = await currentUser(req)
     if (AUTH_REQUIRED && !actor) return json(res, 401, { error: 'unauthorized' })
     if (req.method === 'GET') {
-      const { rows } = await pool.query("SELECT data FROM board_state WHERE id = 'default'")
-      return json(res, 200, rows[0] ? rows[0].data : null)
+      const { rows } = await pool.query("SELECT data, version FROM board_state WHERE id = 'default'")
+      // Версия уходит заголовком, а не в теле: тело — само состояние доски,
+      // и оборачивать его в конверт значило бы сломать уже работающие клиенты.
+      const headers = rows[0] ? { 'X-Board-Version': String(rows[0].version) } : undefined
+      return json(res, 200, rows[0] ? rows[0].data : null, headers)
     }
     if (req.method === 'PUT' || req.method === 'POST') {
       const body = await readBody(req)
@@ -558,9 +564,17 @@ async function handle(req, res) {
       const check = validateBoardPayload(newData)
       if (!check.ok) return json(res, 422, { error: check.error, detail: check.detail })
 
-      // Прежнее состояние — для уведомлений и для снимка истории.
-      const prev = await pool.query("SELECT data FROM board_state WHERE id = 'default'")
+      // Прежнее состояние — для уведомлений, снимка истории и сверки версии.
+      const prev = await pool.query("SELECT data, version FROM board_state WHERE id = 'default'")
       const prevData = prev.rows[0]?.data
+      const prevVersion = prev.rows[0]?.version ?? null
+      const clientVersion = parseVersion(req.headers['x-board-version'])
+
+      // Конфликт одновременного редактирования: доску уже изменил кто-то другой.
+      // Ничего не пишем — иначе правки первого исчезнут молча.
+      if (versionConflict(clientVersion, prevVersion)) {
+        return json(res, 409, { error: 'version_conflict', version: Number(prevVersion) })
+      }
 
       // Снимок предыдущего состояния (разреженно; при заметной потере карточек — всегда).
       try {
@@ -582,11 +596,32 @@ async function handle(req, res) {
         console.error('[api] снимок истории не сохранён:', e.message)
       }
 
-      await pool.query(
-        `INSERT INTO board_state (id, data) VALUES ('default', $1::jsonb)
-         ON CONFLICT (id) DO UPDATE SET data = $1::jsonb, updated_at = now()`,
-        [body],
-      )
+      let nextVersion
+      if (prevVersion === null) {
+        // Первая запись (или строка от прежней схемы) — сверять не с чем.
+        const ins = await pool.query(
+          `INSERT INTO board_state (id, data, version) VALUES ('default', $1::jsonb, 1)
+           ON CONFLICT (id) DO UPDATE SET data = $1::jsonb, version = board_state.version + 1,
+             updated_at = now()
+           RETURNING version`,
+          [body],
+        )
+        nextVersion = Number(ins.rows[0].version)
+      } else {
+        // Условие по версии в самом UPDATE: между SELECT выше и записью мог
+        // успеть вклиниться другой запрос, и проверка в приложении его не
+        // поймала бы. Ноль обновлённых строк — тот же конфликт.
+        const upd = await pool.query(
+          `UPDATE board_state SET data = $1::jsonb, version = version + 1, updated_at = now()
+           WHERE id = 'default' AND version = $2 RETURNING version`,
+          [body, prevVersion],
+        )
+        if (!upd.rowCount) {
+          const cur = await pool.query("SELECT version FROM board_state WHERE id = 'default'")
+          return json(res, 409, { error: 'version_conflict', version: Number(cur.rows[0]?.version ?? 0) })
+        }
+        nextVersion = Number(upd.rows[0].version)
+      }
       // Уведомления (назначение + смена срока) — в фоне, ответ не задерживаем.
       notifyAssignments(pool, prevData, newData, actor?.id, actor?.name).catch((e) =>
         console.error('[tg] assign:', e.message),
@@ -594,7 +629,7 @@ async function handle(req, res) {
       notifyDueChanges(pool, prevData, newData, actor?.id, actor?.name).catch((e) =>
         console.error('[tg] due:', e.message),
       )
-      return json(res, 200, { ok: true })
+      return json(res, 200, { ok: true, version: nextVersion }, { 'X-Board-Version': String(nextVersion) })
     }
     return json(res, 405, { error: 'method_not_allowed' })
   }

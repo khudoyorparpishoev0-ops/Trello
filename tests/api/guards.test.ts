@@ -4,7 +4,13 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateBoardPayload, cardCount, shouldSnapshot } from '../../api/boardGuard.js'
+import {
+  validateBoardPayload,
+  cardCount,
+  shouldSnapshot,
+  parseVersion,
+  versionConflict,
+} from '../../api/boardGuard.js'
 import {
   limiterKey,
   registerFailure,
@@ -155,4 +161,46 @@ test('блокировка снимается по истечении срока
   for (let i = 0; i < LIMITS.MAX_FAILS; i++) registerFailure(key, t0)
   assert.ok(retryAfter(key, t0) > 0)
   assert.equal(retryAfter(key, t0 + LIMITS.BLOCK_MS + 1000), 0)
+})
+
+// ——— Версия доски: защита от затирания чужих правок ———
+
+test('версия разбирается из заголовка только как целое число', () => {
+  assert.equal(parseVersion('7'), 7)
+  assert.equal(parseVersion(' 12 '), 12)
+  assert.equal(parseVersion('0'), 0)
+})
+
+test('отсутствие или мусор в заголовке версии дают null, а не ноль', () => {
+  // Ноль — валидная версия, поэтому «нет заголовка» обязано отличаться от неё.
+  assert.equal(parseVersion(undefined), null)
+  assert.equal(parseVersion(null), null)
+  assert.equal(parseVersion(''), null)
+  assert.equal(parseVersion('   '), null)
+  assert.equal(parseVersion('abc'), null)
+  assert.equal(parseVersion('3.5'), null)
+  assert.equal(parseVersion('-1'), null)
+})
+
+test('расхождение версий — конфликт', () => {
+  assert.equal(versionConflict(1, 2), true)
+  assert.equal(versionConflict(5, 4), true)
+})
+
+test('совпадение версий — записываем', () => {
+  assert.equal(versionConflict(2, 2), false)
+  assert.equal(versionConflict(0, 0), false)
+  // pg отдаёт bigint строкой — сравнение обязано это переживать.
+  assert.equal(versionConflict(3, '3'), false)
+  assert.equal(versionConflict(3, '4'), true)
+})
+
+test('клиент без версии пишет как раньше (фронтенд из кеша браузера)', () => {
+  assert.equal(versionConflict(null, 7), false)
+  assert.equal(versionConflict(undefined, 7), false)
+})
+
+test('на сервере версии ещё нет — сверять не с чем', () => {
+  assert.equal(versionConflict(1, null), false)
+  assert.equal(versionConflict(1, undefined), false)
 })

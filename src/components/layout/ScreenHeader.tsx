@@ -44,6 +44,7 @@ export function ScreenHeader({
   const now = useNow()
 
   const local = mode === 'local'
+  const conflict = mode === 'conflict'
   const date = new Date(now)
   const dateLabel = date
     .toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -106,22 +107,40 @@ export function ScreenHeader({
 
         <div
           className="order-6 hidden items-center gap-3 border-x border-line px-4 text-muted xl:order-5 xl:flex"
-          title={local ? 'Сервер недоступен — изменения не сохраняются' : 'Данные сохраняются на сервере'}
+          title={
+            conflict
+              ? 'Доску изменил другой участник — автосохранение остановлено'
+              : local
+                ? 'Сервер недоступен — изменения не сохраняются'
+                : 'Данные сохраняются на сервере'
+          }
         >
           <Server size={20} strokeWidth={1.6} className="shrink-0" />
           <span>
             <span className="flex items-center gap-1.5">
               <span
                 className="h-2 w-2 shrink-0"
-                style={{ background: local ? 'var(--warn)' : 'var(--green)' }}
+                style={{ background: conflict ? 'var(--err)' : local ? 'var(--warn)' : 'var(--green)' }}
                 aria-hidden
               />
-              <span className={local ? 'mono-label text-warn-ink' : 'mono-label text-brand-ink'}>
-                {local ? 'Локально' : 'Сервер'}
+              <span
+                className={
+                  conflict
+                    ? 'mono-label text-err-ink'
+                    : local
+                      ? 'mono-label text-warn-ink'
+                      : 'mono-label text-brand-ink'
+                }
+              >
+                {conflict ? 'Конфликт' : local ? 'Локально' : 'Сервер'}
               </span>
             </span>
             <span className="mt-0.5 block text-caption text-muted">
-              {local ? 'Изменения не сохраняются' : 'Все системы в норме'}
+              {conflict
+                ? 'Доска изменена другим участником'
+                : local
+                  ? 'Изменения не сохраняются'
+                  : 'Все системы в норме'}
             </span>
           </span>
         </div>

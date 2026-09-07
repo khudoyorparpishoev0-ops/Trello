@@ -3,6 +3,7 @@ import { Sidebar, type AppView } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { MobileTabBar } from '@/components/layout/MobileTabBar'
 import { TopBar, type BoardViewKind } from '@/components/layout/TopBar'
+import { ConflictBanner } from '@/components/layout/ConflictBanner'
 import { Board, type Filters } from '@/components/board/Board'
 import { TableView } from '@/components/board/TableView'
 import { Timeline } from '@/components/board/Timeline'
@@ -29,6 +30,8 @@ export default function App() {
       <Sidebar activeView={view} onSelectView={setView} />
       <MobileNav open={navOpen} onClose={() => setNavOpen(false)} activeView={view} onSelectView={setView} />
       <div className="flex min-w-0 flex-1 flex-col pb-[calc(72px+env(safe-area-inset-bottom))] lg:pb-0">
+        {/* Конфликт версий касается всех экранов, поэтому плашка живёт в каркасе */}
+        <ConflictBanner />
         {view === 'board' && (
           <>
             <TopBar
