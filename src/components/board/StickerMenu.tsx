@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { BarChart3, Bell, Calendar, Check, Clock, Flag, Plus, Repeat, Timer, User, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bell, Calendar, Check, Clock, Plus, RefreshCw, Timer, User, type LucideIcon } from 'lucide-react'
 import type { Priority, User as TUser } from '@/types'
 import { useBoard } from '@/store/boardStore'
 import { PRIORITY_META, PRIORITY_ORDER } from '@/lib/design'
@@ -56,7 +56,7 @@ const STICKER_ITEMS: { k: MenuKind | 'due' | ToggleKey; label: string; icon: Luc
   { k: 'assignee', label: 'Исполнитель', icon: User },
   { k: 'due', label: 'Дедлайн', icon: Calendar },
   { k: 'prio', label: 'Приоритет', icon: BarChart3 },
-  { k: 'repeat', label: 'Регулярная задача', icon: Repeat },
+  { k: 'repeat', label: 'Регулярная задача', icon: RefreshCw },
   { k: 'stopwatch', label: 'Секундомер', icon: Timer },
   { k: 'tracking', label: 'Таймтрекинг', icon: Clock },
   { k: 'reminder', label: 'Напоминание', icon: Bell },
@@ -185,16 +185,13 @@ export function StickerMenuProvider({ children }: { children: ReactNode }) {
                 left: menu.x,
                 top: menu.y,
                 width: menu.w,
-                boxShadow: '0 20px 52px rgba(0,0,0,.5)',
               }}
-              className="z-[51] max-h-[calc(100vh-24px)] overflow-y-auto rounded-[14px] border border-line-strong bg-surface animate-slide-up"
+              className="z-[51] max-h-[calc(100vh-24px)] overflow-y-auto rounded-card border border-line bg-elevated shadow-md animate-slide-up"
             >
               {/* Меню «Добавить стикер» */}
               {menu.kind === 'sticker' && (
                 <div className="p-1.5">
-                  <div className="px-2.5 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
-                    Добавить стикер
-                  </div>
+                  <div className="mono-label px-2.5 pb-2 pt-2 text-faint">Добавить стикер</div>
                   {STICKER_ITEMS.map(({ k, label, icon: Icon }) => {
                     const on = (['repeat', 'stopwatch', 'tracking', 'reminder'] as string[]).includes(k) &&
                       Boolean(card.stickers?.[k as ToggleKey])
@@ -204,11 +201,11 @@ export function StickerMenuProvider({ children }: { children: ReactNode }) {
                         type="button"
                         onClick={() => pickSticker(k)}
                         className={cn(
-                          'flex w-full items-center gap-[11px] rounded-[10px] px-2.5 py-[9px] text-left text-[13.5px] font-medium transition-colors hover:bg-hover',
-                          on ? 'text-brand' : 'text-fg',
+                          'flex min-h-[40px] w-full items-center gap-3 rounded-chip px-2.5 py-2 text-left text-small transition-colors hover:bg-hover',
+                          on ? 'font-semibold text-brand-ink' : 'text-fg',
                         )}
                       >
-                        <Icon size={16} strokeWidth={2} className="shrink-0 opacity-75" />
+                        <Icon size={18} strokeWidth={1.6} className="shrink-0" />
                         {label}
                       </button>
                     )
@@ -220,13 +217,13 @@ export function StickerMenuProvider({ children }: { children: ReactNode }) {
               {menu.kind === 'assignee' && (
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between gap-2.5 px-3.5 pb-2.5 pt-3">
-                    <span className="text-[13.5px] font-semibold text-fg">Стикер «Исполнитель»</span>
+                    <span className="mono-label text-muted">Стикер «Исполнитель»</span>
                     <button
                       type="button"
                       onClick={detachAll}
-                      className="text-[12.5px] font-semibold text-brand transition-opacity hover:opacity-80"
+                      className="text-caption font-semibold text-brand-ink hover:underline"
                     >
-                      открепить
+                      Открепить
                     </button>
                   </div>
                   <div className="px-3.5 pb-2.5">
@@ -234,17 +231,17 @@ export function StickerMenuProvider({ children }: { children: ReactNode }) {
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Поиск по списку (имя, отдел)"
-                      className="h-9 w-full rounded-[10px] border border-line bg-col px-3 text-[13px] text-fg outline-none transition-colors placeholder:text-faint focus:border-brand"
+                      className="h-10 w-full rounded-chip border border-line-strong bg-mist px-3 text-small text-fg outline-none transition-colors placeholder:text-faint focus:border-brand"
                     />
                   </div>
-                  <div className="grid grid-cols-[1fr_96px_20px] gap-2.5 border-b border-line px-3.5 pb-2 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-faint">
+                  <div className="mono-label grid grid-cols-[1fr_96px_20px] gap-2.5 border-b border-line px-3.5 pb-2 text-faint">
                     <span>Имя</span>
                     <span>Отдел</span>
                     <span />
                   </div>
                   <div className="max-h-[260px] overflow-y-auto p-1.5">
                     {filtered.length === 0 && (
-                      <div className="px-2 py-6 text-center text-[12.5px] text-faint">Никого не найдено</div>
+                      <div className="px-2 py-6 text-center text-caption text-faint">Никого не найдено</div>
                     )}
                     {filtered.map((u) => {
                       const on = card.assigneeIds.includes(u.id)
@@ -253,22 +250,17 @@ export function StickerMenuProvider({ children }: { children: ReactNode }) {
                           key={u.id}
                           type="button"
                           onClick={() => togglePerson(u.id)}
-                          className="grid w-full grid-cols-[1fr_96px_20px] items-center gap-2.5 rounded-[10px] p-2 text-left transition-colors hover:bg-hover"
+                          className="grid min-h-[44px] w-full grid-cols-[1fr_96px_20px] items-center gap-2.5 rounded-chip p-2 text-left transition-colors hover:bg-hover"
                         >
-                          <span className="flex min-w-0 items-center gap-[9px]">
+                          <span className="flex min-w-0 items-center gap-2.5">
                             <PersonAvatar user={u} />
-                            <span
-                              className={cn(
-                                'truncate text-[13px]',
-                                on ? 'font-semibold text-fg' : 'font-medium text-muted',
-                              )}
-                            >
+                            <span className={cn('truncate text-small', on ? 'font-semibold text-fg' : 'text-muted')}>
                               {u.name}
                             </span>
                           </span>
-                          <span className="truncate text-[12px] text-faint">{u.department ?? '—'}</span>
-                          <span className="flex h-5 w-5 items-center justify-center text-brand">
-                            {on && <Check size={14} strokeWidth={2.6} />}
+                          <span className="truncate text-caption text-faint">{u.department ?? '—'}</span>
+                          <span className="flex h-5 w-5 items-center justify-center text-brand-ink">
+                            {on && <Check size={15} strokeWidth={2.4} />}
                           </span>
                         </button>
                       )
@@ -278,9 +270,9 @@ export function StickerMenuProvider({ children }: { children: ReactNode }) {
                     <button
                       type="button"
                       onClick={addEveryoneToProject}
-                      className="flex items-center gap-2 border-t border-line px-3.5 py-3 text-[13px] font-semibold text-brand transition-colors hover:bg-hover"
+                      className="flex min-h-[44px] items-center gap-2 border-t border-line px-3.5 py-3 text-small font-semibold text-brand-ink transition-colors hover:bg-hover"
                     >
-                      <Plus size={14} strokeWidth={2.4} /> Добавить сотрудников в проект
+                      <Plus size={16} strokeWidth={1.6} /> Добавить сотрудников в проект
                     </button>
                   )}
                 </div>
@@ -289,9 +281,7 @@ export function StickerMenuProvider({ children }: { children: ReactNode }) {
               {/* Поповер «Приоритет» */}
               {menu.kind === 'prio' && (
                 <div className="p-1.5">
-                  <div className="px-2.5 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint">
-                    Приоритет
-                  </div>
+                  <div className="mono-label px-2.5 pb-2 pt-2 text-faint">Приоритет</div>
                   {PRIORITY_ORDER.map((p) => {
                     const meta = PRIORITY_META[p]
                     const on = card.priority === p
@@ -301,13 +291,13 @@ export function StickerMenuProvider({ children }: { children: ReactNode }) {
                         type="button"
                         onClick={() => pickPrio(p)}
                         className={cn(
-                          'flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-[9px] text-left text-[13.5px] transition-colors hover:bg-hover',
-                          on ? 'font-semibold' : 'font-medium',
+                          'flex min-h-[40px] w-full items-center gap-2.5 rounded-chip px-2.5 py-2 text-left text-small transition-colors hover:bg-hover',
+                          on ? 'font-semibold' : 'font-normal',
                         )}
                       >
-                        <Flag size={14} strokeWidth={2.2} style={{ color: meta.color }} className="shrink-0" />
+                        <span className="h-2 w-2 shrink-0" style={{ background: meta.color }} aria-hidden />
                         <span className="flex-1 text-fg">{meta.label}</span>
-                        {on && <Check size={14} strokeWidth={2.6} className="shrink-0 text-brand" />}
+                        {on && <Check size={15} strokeWidth={2.4} className="shrink-0 text-brand-ink" />}
                       </button>
                     )
                   })}
@@ -321,16 +311,15 @@ export function StickerMenuProvider({ children }: { children: ReactNode }) {
   )
 }
 
-/** Аватар 26×26 для списка исполнителей (фото либо инициалы). */
+/** Аватар 28×28 для списка исполнителей (фото либо инициалы, квадрат радиус 2). */
 function PersonAvatar({ user }: { user: TUser }) {
   if (user.avatar) {
-    return <img src={user.avatar} alt="" className="h-[26px] w-[26px] shrink-0 rounded-pill object-cover" />
+    return (
+      <img src={user.avatar} alt="" className="h-7 w-7 shrink-0 rounded-chip border border-line object-cover" />
+    )
   }
   return (
-    <span
-      className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-pill text-[10px] font-semibold text-white"
-      style={{ background: user.color }}
-    >
+    <span className="mono-data flex h-7 w-7 shrink-0 items-center justify-center rounded-chip border border-line bg-mist text-muted">
       {user.initials}
     </span>
   )

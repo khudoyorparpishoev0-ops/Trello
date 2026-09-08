@@ -73,14 +73,19 @@ const run = async () => {
     // Приоритет
     await dlg.getByRole('button', { name: 'Критический' }).click()
     await page.waitForTimeout(120)
+    const prioBg = async (name) =>
+      dlg
+        .locator('button', { hasText: name })
+        .first()
+        .evaluate((el) => getComputedStyle(el).backgroundColor)
     r.check(
-      (await dlg.locator('button', { hasText: 'Критический' }).first().getAttribute('style'))?.includes('rgb') ?? false,
+      (await prioBg('Критический')) !== (await prioBg('Низкий')),
       'приоритет меняется и подсвечивается',
     )
 
     // Срок через собственный пикер
-    await dlg.getByRole('button', { name: /Не задан/ }).click()
-    await page.getByText('ЧАС', { exact: true }).waitFor()
+    await dlg.getByRole('button', { name: /Срок не задан/ }).click()
+    await page.getByText('Час', { exact: true }).waitFor()
     r.check(await page.locator('input[type=datetime-local]').count() === 0, 'нативный datetime-local не используется')
     await dlg.locator('button', { hasText: /^20$/ }).first().click()
     await page.waitForTimeout(150)
@@ -156,7 +161,7 @@ const run = async () => {
 
     // ——— 6. Поиск и фильтры ———
     r.section('Поиск и фильтры')
-    const search = page.getByPlaceholder('Поиск карточек…')
+    const search = page.getByPlaceholder('Поиск карточек')
     await search.fill('TEST Проверка')
     await page.waitForTimeout(200)
     r.check((await page.locator('article').count()) === 1, 'поиск оставляет только совпадения')
@@ -178,7 +183,7 @@ const run = async () => {
     // ——— 7. Разделы ———
     r.section('Разделы')
     for (const [name, marker] of [
-      ['Дашборд', 'Скорость по отделам'],
+      ['Дашборд', 'Загрузка по отделам'],
       ['Команда', 'Сотрудник'],
       ['Календарь', 'событий в этом месяце'],
       ['Компания', 'Проекты'],
@@ -197,8 +202,8 @@ const run = async () => {
     // ——— 9. Дашборд: сверка чисел ———
     r.section('Дашборд')
     await page.getByText('Дашборд', { exact: true }).first().click()
-    await page.getByText('Скорость по отделам').waitFor()
-    const kpi = await page.locator('.text-\\[32px\\]').allInnerTexts()
+    await page.getByText('Загрузка по отделам').waitFor()
+    const kpi = await page.locator('[data-kpi]').allInnerTexts()
     r.check(kpi.length >= 3, `KPI отображаются (${kpi.join(' / ')})`)
     r.check(
       kpi.every((v) => !v.includes('NaN') && !v.includes('undefined')),
@@ -283,7 +288,7 @@ const run = async () => {
       'логин, изменённый вручную, не перезаписывается сменой почты',
     )
     r.check(
-      (await auth.locator('.border-error').count()) === 0,
+      (await auth.locator('.border-err').count()) === 0,
       'корпоративная почта (@ithona.tj) не подсвечивается ошибкой',
     )
     await auth.context().close()
@@ -331,7 +336,197 @@ const run = async () => {
     r.check(sentTo === '', 'на постороннюю почту код не отправляется')
     await mailAuth.context().close()
 
-    // ——— 12. Ошибка сервера ———
+    // ——— 12. Адресация разделов ———
+    // Раньше раздел жил только в состоянии React: ссылку дать было нельзя,
+    // «назад» выходила из приложения, перезагрузка возвращала на доску.
+    r.section('Адресация')
+    const nav = await newPage()
+    await nav.goto(site.base, { waitUntil: 'domcontentloaded' })
+    await nav.getByRole('heading', { name: 'Платформа задач', level: 1 }).waitFor()
+    r.check(/\/board\//.test(new URL(nav.url()).pathname), `корень заменяется адресом доски (${new URL(nav.url()).pathname})`)
+
+    await nav.locator('aside').getByRole('button', { name: 'Отчёты' }).click()
+    await nav.getByRole('heading', { name: 'Отчёты', level: 1 }).waitFor()
+    r.check(new URL(nav.url()).pathname === '/reports', 'переход в раздел меняет адрес')
+
+    await nav.locator('aside').getByRole('button', { name: 'Настройки' }).click()
+    await nav.getByRole('heading', { name: 'Настройки', level: 1 }).waitFor()
+    await nav.goBack()
+    await nav.getByRole('heading', { name: 'Отчёты', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, 'кнопка «назад» возвращает в предыдущий раздел, а не из приложения')
+    await nav.goForward()
+    await nav.getByRole('heading', { name: 'Настройки', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, 'кнопка «вперёд» тоже работает')
+
+    // Перезагрузка возвращает туда же, где работали.
+    await nav.reload({ waitUntil: 'domcontentloaded' })
+    await nav.getByRole('heading', { name: 'Настройки', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, 'после перезагрузки открывается тот же раздел')
+
+    // Вид доски адресуется отдельным сегментом.
+    const boardPath = new URL(nav.url()).pathname
+    await nav.goto(site.base + '/dashboard', { waitUntil: 'domcontentloaded' })
+    await nav.getByRole('heading', { name: 'Дашборд', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, 'прямой переход по ссылке на раздел открывает его')
+    void boardPath
+
+    await nav.locator('aside').getByRole('button', { name: 'Доска' }).click()
+    await nav.getByRole('button', { name: 'Таблица', exact: true }).click()
+    await nav.getByText('Чек-лист', { exact: true }).first().waitFor()
+    r.check(/\/table$/.test(new URL(nav.url()).pathname), 'вид доски виден в адресе')
+
+    // Ссылка на задачу: возвращаемся к канбану через переключатель видов.
+    // Пункт «Доска» в меню сюда не годится: выбранный вид сохраняется, и это
+    // намеренно — человек вернулся в раздел, а не сбросил свою настройку.
+    await nav.locator('header').getByRole('button', { name: 'Доска', exact: true }).click()
+    await nav.locator('article').first().waitFor({ timeout: 8000 })
+    r.check(!/\/table$/.test(new URL(nav.url()).pathname), 'переключатель видов возвращает к канбану')
+    await nav.locator('article').first().click()
+    await nav.getByRole('dialog').waitFor({ timeout: 8000 })
+    const cardUrl = nav.url()
+    r.check(/[?&]card=/.test(cardUrl), 'открытая задача попадает в адрес')
+    await nav.keyboard.press('Escape')
+    await nav.waitForTimeout(200)
+    r.check((await nav.getByRole('dialog').count()) === 0, 'закрытие панели убирает задачу из адреса')
+
+    // Та же ссылка, открытая заново, показывает ту же задачу.
+    await nav.goto(cardUrl, { waitUntil: 'domcontentloaded' })
+    await nav.getByRole('dialog').waitFor({ timeout: 8000 })
+    r.check(true, 'ссылка на задачу открывает её у получателя')
+    await nav.context().close()
+
+    // Прежние ссылки вида /?board=<id> продолжают работать.
+    const legacy = await newPage()
+    await legacy.goto(site.base + '/?board=board_infra', { waitUntil: 'domcontentloaded' })
+    await legacy.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 8000 })
+    r.check(
+      new URL(legacy.url()).pathname === '/board/board_infra',
+      `прежняя ссылка /?board=<id> приводится к новому адресу (${new URL(legacy.url()).pathname})`,
+    )
+    r.check(
+      (await legacy.getByRole('heading', { name: 'Инфраструктура', level: 1 }).count()) > 0,
+      'и открывает именно ту доску',
+    )
+    await legacy.context().close()
+
+    // ——— 13. Конфликт версий доски ———
+    // Доска хранится одним блобом: раньше сохранение второго участника молча
+    // затирало правки первого. Теперь сервер отвечает 409, автосохранение
+    // останавливается, а выбор — чью версию оставить — делает человек.
+    r.section('Конфликт версий')
+
+    const remoteBoard = {
+      workspace: { id: 'w1', name: 'IT-HONA', boards: [{ id: 'b1', name: 'Удалённая доска' }] },
+      users: { u1: { id: 'u1', name: 'Тест Тестов', initials: 'ТТ', color: '#186B36' } },
+      currentUserId: 'u1',
+      boards: {
+        b1: { id: 'b1', name: 'Удалённая доска', visibility: 'private', listIds: ['l1'], memberIds: ['u1'] },
+      },
+      boardOrder: ['b1'],
+      activeBoardId: 'b1',
+      lists: { l1: { id: 'l1', title: 'To Do', cardIds: ['c1'] } },
+      cards: {
+        c1: {
+          id: 'c1',
+          title: 'TEST карточка с сервера',
+          labelIds: [],
+          assigneeIds: [],
+          priority: 'medium',
+          checklists: [],
+          comments: [],
+          attachments: [],
+          createdAt: new Date().toISOString(),
+          code: 500,
+        },
+      },
+      labels: {},
+      departments: [],
+    }
+
+    // Сценарий А: взять версию сервера.
+    let served = 0
+    const conflictA = await newPage({}, {
+      '/api/board': (route, send) => {
+        if (route.request().method() !== 'GET') return send({ error: 'version_conflict', version: 42 }, 409)
+        // Первый GET — доски нет (клиент попробует записать свою и получит 409),
+        // следующий — уже чужая версия, которую и заберёт кнопка «Обновить».
+        return served++ === 0 ? send(null) : send(remoteBoard)
+      },
+    }, false)
+    await conflictA.goto(site.base, { waitUntil: 'domcontentloaded' })
+    const bannerA = conflictA.getByRole('alert')
+    await bannerA.waitFor({ timeout: 8000 })
+    r.check(true, 'при 409 показывается плашка конфликта, а не молчаливая перезапись')
+    r.check(
+      (await conflictA.getByRole('heading', { name: 'Платформа задач', level: 1 }).count()) > 0,
+      'свои правки при конфликте остаются на экране',
+    )
+    await bannerA.getByRole('button', { name: 'Обновить' }).click()
+    await conflictA.getByRole('heading', { name: 'Удалённая доска', level: 1 }).waitFor({ timeout: 8000 })
+    r.check(true, '«Обновить» подставляет версию сервера')
+    r.check(
+      (await conflictA.getByText('TEST карточка с сервера').count()) > 0,
+      'после обновления видны чужие карточки',
+    )
+    r.check((await conflictA.getByRole('alert').count()) === 0, 'плашка конфликта исчезает после обновления')
+    await conflictA.context().close()
+
+    // Сценарий Б: записать свою версию поверх чужой.
+    let puts = 0
+    const conflictB = await newPage({}, {
+      '/api/board': (route, send) => {
+        if (route.request().method() === 'GET') return send(null)
+        // Первая запись конфликтует, повторная (осознанная) — проходит.
+        return puts++ === 0 ? send({ error: 'version_conflict', version: 42 }, 409) : send({ ok: true, version: 43 })
+      },
+    }, false)
+    await conflictB.goto(site.base, { waitUntil: 'domcontentloaded' })
+    const bannerB = conflictB.getByRole('alert')
+    await bannerB.waitFor({ timeout: 8000 })
+    await bannerB.getByRole('button', { name: 'Записать мою версию' }).click()
+    await conflictB.waitForTimeout(600)
+    r.check((await conflictB.getByRole('alert').count()) === 0, '«Записать мою версию» снимает конфликт')
+    r.check(
+      (await conflictB.getByRole('heading', { name: 'Платформа задач', level: 1 }).count()) > 0,
+      'после записи своей версии на экране остаётся она, а не чужая',
+    )
+    await conflictB.context().close()
+
+    // ——— 14. Отказ по правам ———
+    // Удаление проекта уносит все его задачи, поэтому доступно администратору.
+    // Проверка на сервере: PUT принимает состояние целиком, и скрытой кнопки
+    // мало. Интерфейс обязан объяснить отказ, а не уйти в «локальный режим».
+    r.section('Отказ по правам')
+    const denied = await newPage({}, {
+      '/api/board': (route, send) => {
+        if (route.request().method() === 'GET') return send(null)
+        return send(
+          {
+            error: 'forbidden_board_delete',
+            detail: 'удалять проекты может только администратор',
+            boards: ['Склад · Периметр'],
+          },
+          403,
+        )
+      },
+    }, false)
+    await denied.goto(site.base, { waitUntil: 'domcontentloaded' })
+    const deniedBanner = denied.getByRole('alert')
+    await deniedBanner.waitFor({ timeout: 8000 })
+    r.check(
+      (await deniedBanner.getByText(/Изменение отклонено/).count()) > 0,
+      'отказ по правам объясняется, а не выглядит потерей связи',
+    )
+    r.check(
+      (await deniedBanner.getByText(/только администратор/).count()) > 0,
+      'в сообщении названа причина и восстановленный проект',
+    )
+    await deniedBanner.getByRole('button', { name: 'Скрыть сообщение' }).click()
+    await denied.waitForTimeout(200)
+    r.check((await denied.getByRole('alert').count()) === 0, 'сообщение закрывается')
+    await denied.context().close()
+
+    // ——— 15. Ошибка сервера ———
     r.section('Обработка ошибок')
     const broken = await newPage({}, {
       '/api/board': (_route, send) => send({ error: 'internal_error' }, 500),

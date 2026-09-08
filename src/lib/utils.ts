@@ -94,6 +94,38 @@ export function deadlineRemaining(dueIso: string | undefined, now: number = Date
   return `осталось ${hours} ч ${String(mins).padStart(2, '0')} мин`
 }
 
+/**
+ * Таймер в шапке карточки — служебный моно-слой, поэтому строка капслочная:
+ * `2Д 04:30`, `04:30`, `ПРОСРОЧЕНО 1Д`, а без срока — `СРОКА НЕТ`.
+ * Слово вместо минуса читается однозначно: «−1д» в мелком кегле терялся.
+ */
+export function deadlineTimer(dueIso: string | undefined, now: number = Date.now()): string {
+  if (!dueIso) return 'СРОКА НЕТ'
+  const raw = deadlineCountdown(dueIso, now)
+  if (!raw) return 'СРОКА НЕТ'
+  return raw.startsWith('\u2212') ? `ПРОСРОЧЕНО ${raw.slice(1).toUpperCase()}` : raw.toUpperCase()
+}
+
+/**
+ * «5 мин назад» / «2 ч назад» / «вчера» / «12 июл» — для ленты активности.
+ * Точное время в ленте не нужно, а дата старше недели полезнее, чем «8 дн назад».
+ */
+export function timeAgo(iso: string, now: number = Date.now()): string {
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return ''
+  const diff = now - t
+  if (diff < 0) return formatDate(iso)
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'только что'
+  if (mins < 60) return `${mins} мин назад`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} ч назад`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'вчера'
+  if (days < 7) return `${days} дн назад`
+  return formatDate(iso)
+}
+
 /** Человекочитаемый размер файла. */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} Б`

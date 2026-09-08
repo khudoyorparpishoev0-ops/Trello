@@ -3,7 +3,7 @@
 Автоматически — 3 команды, около минуты:
 
 ```bash
-npm run verify     # линтер + типы + 62 теста + production-сборка
+npm run verify     # линтер + типы + 130 тестов + production-сборка
 npm run test:e2e   # 44 сценария в браузере
 ```
 

@@ -52,11 +52,11 @@ function buildDates() {
 }
 
 const USERS: User[] = [
-  { id: 'u_alisher', name: 'Алишер Каримов', initials: 'АК', color: '#3B82F6', role: 'admin', online: true, department: 'IT-отдел' },
-  { id: 'u_dilnoza', name: 'Дилноза Пулатова', initials: 'ДП', color: '#EC4899', role: 'member', online: true, department: 'Проектирование' },
-  { id: 'u_egor', name: 'Егор Соколов', initials: 'ЕС', color: '#F59E0B', role: 'member', online: false, department: 'IT-отдел' },
-  { id: 'u_maria', name: 'Мария Ким', initials: 'МК', color: '#8B5CF6', role: 'member', online: true, department: 'Монтаж' },
-  { id: 'u_timur', name: 'Тимур Рахимов', initials: 'ТР', color: '#06B6D4', role: 'observer', online: false, department: 'ПТО' },
+  { id: 'u_alisher', name: 'Алишер Каримов', initials: 'АК', color: '#23539F', role: 'admin', online: true, department: 'IT-отдел' },
+  { id: 'u_dilnoza', name: 'Дилноза Пулатова', initials: 'ДП', color: '#7A2E52', role: 'member', online: true, department: 'Проектирование' },
+  { id: 'u_egor', name: 'Егор Соколов', initials: 'ЕС', color: '#7A5510', role: 'member', online: false, department: 'IT-отдел' },
+  { id: 'u_maria', name: 'Мария Ким', initials: 'МК', color: '#0E3B21', role: 'member', online: true, department: 'Монтаж' },
+  { id: 'u_timur', name: 'Тимур Рахимов', initials: 'ТР', color: '#1D5C63', role: 'observer', online: false, department: 'ПТО' },
 ]
 
 const COMMENT_POOL = [

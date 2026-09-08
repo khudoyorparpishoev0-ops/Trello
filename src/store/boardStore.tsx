@@ -12,7 +12,8 @@ import {
 import type { AppData, Board, BoardState, Card, Checklist, List, Priority, User } from '@/types'
 import { createSeedState, emptyBoard, DEFAULT_DEPARTMENTS } from '@/data/seed'
 import { fetchUsers, loadBoard, saveBoard } from '@/lib/api'
-import { backfillTaskCodes, maxTaskCode, nextTaskCode, uid } from '@/lib/utils'
+import { backfillTaskCodes, dueStatus, maxTaskCode, nextTaskCode, uid } from '@/lib/utils'
+import { isListDone } from '@/lib/design'
 
 /**
  * Store приложения. Хранит несколько досок (AppData); компонентам отдаёт
@@ -20,7 +21,12 @@ import { backfillTaskCodes, maxTaskCode, nextTaskCode, uid } from '@/lib/utils'
  * состояние сохраняется на сервере; при недоступности — работаем локально.
  */
 
-export type SyncMode = 'loading' | 'server' | 'local'
+/**
+ * Режим синхронизации.
+ * `conflict` — доску изменил другой участник, автосохранение остановлено до
+ * решения пользователя: иначе наши правки затёрли бы чужие (или наоборот).
+ */
+export type SyncMode = 'loading' | 'server' | 'local' | 'conflict'
 
 type Action =
   | { type: 'HYDRATE'; data: AppData }
@@ -497,6 +503,25 @@ function migrate(raw: unknown): AppData {
 }
 
 /** AppData → представление активной доски. */
+/**
+ * Отличаются ли состояния только полем `activeBoardId`.
+ *
+ * Открытая доска хранится в общем документе, то есть переключение раздела у
+ * одного человека — это запись, которую видят все. С адресацией (R-04) такие
+ * переключения стали частыми, а с версионированием (R-01) каждая запись ещё и
+ * повышает версию и роняет чужие сохранения в конфликт. Открытая доска у
+ * каждого своя — теперь она живёт в адресе, — поэтому ради неё на сервер не
+ * ходим. Сравнение по ссылкам: редьюсер пересоздаёт только изменившиеся срезы.
+ */
+function onlyActiveBoardChanged(prev: AppData, next: AppData): boolean {
+  if (prev === next) return false
+  for (const key of Object.keys(next) as (keyof AppData)[]) {
+    if (key === 'activeBoardId') continue
+    if (prev[key] !== next[key]) return false
+  }
+  return prev.activeBoardId !== next.activeBoardId
+}
+
 function deriveView(app: AppData): BoardState {
   const board = app.boards[app.activeBoardId] ?? app.boards[app.boardOrder[0]]
   const lists: Record<string, List> = {}
@@ -553,6 +578,12 @@ export interface BoardSummary {
   id: string
   name: string
   memberIds: string[]
+  /** Всего карточек на доске. */
+  total: number
+  /** Не закрытых (списки без признака «выполнено»). */
+  active: number
+  /** Из активных — просроченных. */
+  overdue: number
 }
 
 interface BoardContextValue {
@@ -568,6 +599,18 @@ interface BoardContextValue {
   departments: string[]
   /** Немедленно сохранить состояние на сервере (кнопка «Сохранить»). */
   saveNow: () => Promise<boolean>
+  /** Загрузить версию с сервера, отказавшись от несохранённых правок. */
+  reloadFromServer: () => Promise<void>
+  /** Перезаписать сервер своей версией, отказавшись от чужих правок. */
+  overwriteServer: () => Promise<boolean>
+  /** Сообщение об отклонённом сервером изменении (например, нет прав). */
+  notice: string | null
+  dismissNotice: () => void
+  /**
+   * На какой доске лежит карточка. Нужно ссылке вида `?card=<id>`: она может
+   * указывать на задачу с другой доски, и её сначала надо открыть.
+   */
+  boardIdOfCard: (cardId: string) => string | null
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null)
@@ -575,33 +618,98 @@ const BoardContext = createContext<BoardContextValue | null>(null)
 export function BoardProvider({ children }: { children: ReactNode }) {
   const [app, dispatch] = useReducer(appReducer, undefined, createSeedState)
   const [mode, setMode] = useState<SyncMode>('loading')
+  /** Сервер отклонил изменение (нет прав) — показываем причину, а не «локальный режим». */
+  const [notice, setNotice] = useState<string | null>(null)
   const loadedRef = useRef(false)
   // Всегда актуальный снимок состояния для немедленного сохранения (кнопка «Сохранить»).
   const appRef = useRef(app)
   appRef.current = app
+  /** Состояние, отправленное на сервер последним, — для отсечения лишних записей. */
+  const savedRef = useRef(app)
+  /** Номер версии доски, полученный от сервера. null — сервер без версионирования. */
+  const versionRef = useRef<number | null>(null)
+  /**
+   * Пропустить одно автосохранение. Ставится, когда состояние пришло с сервера:
+   * сохранять только что загруженное бессмысленно, а лишняя запись подняла бы
+   * версию и устроила конфликт остальным участникам.
+   */
+  const skipSaveRef = useRef(false)
 
-  const saveNow = useCallback(async () => {
-    const ok = await saveBoard(appRef.current)
-    setMode(ok ? 'server' : 'local')
-    return ok
+  /** Взять версию сервера. Несохранённые правки при этом теряются осознанно. */
+  const pull = useCallback(async () => {
+    const snapshot = await loadBoard()
+    if (!snapshot) {
+      setMode('local')
+      return false
+    }
+    versionRef.current = snapshot.version
+    skipSaveRef.current = true
+    dispatch({ type: 'HYDRATE', data: migrate(snapshot.data) })
+    setMode('server')
+    return true
   }, [])
+
+  /** Записать состояние на сервер и обновить режим по результату. */
+  const push = useCallback(
+    async (state: AppData, version: number | null) => {
+      const r = await saveBoard(state, version)
+      if (r.ok) {
+        versionRef.current = r.version
+        setNotice(null)
+        setMode('server')
+        return true
+      }
+      if (r.kind === 'conflict') {
+        // Версию сервера запоминаем: она понадобится, если пользователь решит
+        // всё-таки записать свою версию поверх чужой.
+        versionRef.current = r.version
+        setMode('conflict')
+        return false
+      }
+      if (r.kind === 'forbidden') {
+        // Сервер отклонил изменение целиком, значит на экране состояние,
+        // которого нет на сервере. Забираем серверное — иначе удалённый
+        // проект остался бы пропавшим с экрана, но живым в базе.
+        setNotice(r.message)
+        await pull()
+        return false
+      }
+      setMode('local')
+      return false
+    },
+    [pull],
+  )
+
+  const saveNow = useCallback(() => push(appRef.current, versionRef.current), [push])
+
+  const reloadFromServer = useCallback(async () => {
+    setNotice(null)
+    await pull()
+  }, [pull])
+
+  /** Записать свою версию поверх чужой — по явному решению пользователя. */
+  const overwriteServer = useCallback(async () => {
+    // Берём текущую версию сервера, иначе запись снова упрётся в конфликт.
+    const snapshot = await loadBoard()
+    return push(appRef.current, snapshot?.version ?? null)
+  }, [push])
 
   useEffect(() => {
     let cancelled = false
-    void loadBoard().then(async (data) => {
+    void loadBoard().then(async (snapshot) => {
       if (cancelled) return
       let current: AppData = app
-      if (data) {
-        current = migrate(data)
+      if (snapshot) {
+        current = migrate(snapshot.data)
+        versionRef.current = snapshot.version
         dispatch({ type: 'HYDRATE', data: current })
         setMode('server')
       } else {
-        const ok = await saveBoard(app)
-        setMode(ok ? 'server' : 'local')
+        await push(app, null)
       }
-      // Открыть доску из ссылки вида /?board=<id> (кнопка «Скопировать ссылку»).
-      const wanted = new URLSearchParams(window.location.search).get('board')
-      if (wanted && current.boards[wanted]) dispatch({ type: 'SWITCH_BOARD', boardId: wanted })
+      // Доску из адреса подставляет роутер (App), здесь только отмечаем
+      // загрузку: до неё автосохранение не должно срабатывать.
+      void current
       loadedRef.current = true
       // Подтянуть свежие профили (фото, отделы) зарегистрированных сотрудников.
       void fetchUsers().then((list) => {
@@ -627,11 +735,21 @@ export function BoardProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loadedRef.current) return
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false
+      savedRef.current = app
+      return
+    }
+    // В режиме конфликта автосохранение молчит: решение принимает человек.
+    if (mode === 'conflict') return
+    // Смена открытой доски — не повод писать на сервер (см. onlyActiveBoardChanged).
+    if (onlyActiveBoardChanged(savedRef.current, app)) return
     const t = setTimeout(() => {
-      void saveBoard(app).then((ok) => setMode(ok ? 'server' : 'local'))
+      savedRef.current = app
+      void push(app, versionRef.current)
     }, 700)
     return () => clearTimeout(t)
-  }, [app])
+  }, [app, mode, push])
 
   const actions = useMemo<BoardActions>(
     () => ({
@@ -672,24 +790,89 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   )
 
   const state = useMemo(() => deriveView(app), [app])
+
+  /**
+   * Сводка по доске для сайдбара и раздела «Компания»: сколько задач, сколько
+   * из них в работе и сколько просрочено. Считается здесь, потому что только
+   * тут доступны списки и карточки всех досок сразу, а не одной активной.
+   */
+  const summarize = useCallback(
+    (id: string): BoardSummary => {
+      const b = app.boards[id]
+      let total = 0
+      let active = 0
+      let overdue = 0
+      for (const lid of b.listIds) {
+        const list = app.lists[lid]
+        if (!list) continue
+        const done = isListDone(list)
+        for (const cid of list.cardIds) {
+          const card = app.cards[cid]
+          if (!card) continue
+          total += 1
+          if (done) continue
+          active += 1
+          if (dueStatus(card.dueDate, false) === 'overdue') overdue += 1
+        }
+      }
+      return { id, name: b.name, memberIds: b.memberIds, total, active, overdue }
+    },
+    [app.boards, app.lists, app.cards],
+  )
+
+  const boardIdOfCard = useCallback(
+    (cardId: string) => {
+      for (const boardId of app.boardOrder) {
+        const board = app.boards[boardId]
+        if (!board) continue
+        for (const listId of board.listIds) {
+          if (app.lists[listId]?.cardIds.includes(cardId)) return boardId
+        }
+      }
+      return null
+    },
+    [app.boardOrder, app.boards, app.lists],
+  )
+
   const boards = useMemo(
-    () =>
-      app.boardOrder
-        .filter((id) => app.boards[id] && !app.boards[id].archived)
-        .map((id) => ({ id, name: app.boards[id].name, memberIds: app.boards[id].memberIds })),
-    [app.boardOrder, app.boards],
+    () => app.boardOrder.filter((id) => app.boards[id] && !app.boards[id].archived).map(summarize),
+    [app.boardOrder, app.boards, summarize],
   )
   const archivedBoards = useMemo(
-    () =>
-      app.boardOrder
-        .filter((id) => app.boards[id] && app.boards[id].archived)
-        .map((id) => ({ id, name: app.boards[id].name, memberIds: app.boards[id].memberIds })),
-    [app.boardOrder, app.boards],
+    () => app.boardOrder.filter((id) => app.boards[id] && app.boards[id].archived).map(summarize),
+    [app.boardOrder, app.boards, summarize],
   )
 
   const value = useMemo(
-    () => ({ state, actions, mode, boards, archivedBoards, activeBoardId: app.activeBoardId, departments: app.departments, saveNow }),
-    [state, actions, mode, boards, archivedBoards, app.activeBoardId, app.departments, saveNow],
+    () => ({
+      state,
+      actions,
+      mode,
+      boards,
+      archivedBoards,
+      activeBoardId: app.activeBoardId,
+      departments: app.departments,
+      saveNow,
+      reloadFromServer,
+      overwriteServer,
+      notice,
+      dismissNotice: () => setNotice(null),
+      boardIdOfCard,
+    }),
+    [
+      state,
+      actions,
+      mode,
+      boards,
+      archivedBoards,
+      app.activeBoardId,
+      app.departments,
+      saveNow,
+      reloadFromServer,
+      overwriteServer,
+      notice,
+      boardIdOfCard,
+    ],
   )
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>
 }

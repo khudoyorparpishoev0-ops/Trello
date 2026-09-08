@@ -1,45 +1,58 @@
 import { useState } from 'react'
-import { CoreTile } from '@/components/ui/Logo'
 import {
-  SquareKanban,
   LayoutDashboard,
-  Calendar,
+  Columns3,
   Users,
-  Settings,
+  Calendar,
+  Building2,
+  BarChart3,
+  Settings2,
   ChevronRight,
   Plus,
-  LogOut,
   X,
-  Building2,
+  Folder,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { User } from '@/types'
-import { useBoard } from '@/store/boardStore'
+import type { User as TUser } from '@/types'
+import { useBoard, type BoardSummary } from '@/store/boardStore'
 import { useAuth } from '@/store/auth'
+import { useRouter } from '@/store/router'
+import type { AppView } from '@/lib/route'
 import { Avatar } from '@/components/ui/Avatar'
+import { CoreWordmark } from '@/components/ui/Logo'
 import { cn } from '@/lib/utils'
 
-export type AppView = 'board' | 'dashboard' | 'company' | 'calendar' | 'team' | 'reports' | 'profile'
-
-// Порядок и состав — по хендофф-спецификации §2.
+/**
+ * Порядок пунктов фиксирован брендбуком (Digital §06). «Отчёты» стоят шестыми:
+ * экран был реализован, но в прежнем меню отсутствовал и оставался недостижим.
+ */
 const NAV: { icon: LucideIcon; label: string; view: AppView }[] = [
   { icon: LayoutDashboard, label: 'Дашборд', view: 'dashboard' },
-  { icon: SquareKanban, label: 'Доска', view: 'board' },
+  { icon: Columns3, label: 'Доска', view: 'board' },
   { icon: Users, label: 'Команда', view: 'team' },
   { icon: Calendar, label: 'Календарь', view: 'calendar' },
   { icon: Building2, label: 'Компания', view: 'company' },
-  { icon: Settings, label: 'Настройки', view: 'profile' },
+  { icon: BarChart3, label: 'Отчёты', view: 'reports' },
+  { icon: Settings2, label: 'Настройки', view: 'profile' },
 ]
 
+/** Цвет точки проекта: есть просрочки → тревога, есть работа → зелёный, пусто → серый. */
+function projectDot(b: BoardSummary): string {
+  if (b.overdue > 0) return '#E0A126'
+  if (b.active > 0) return '#33C561'
+  return '#8E9A91'
+}
+
 interface SidebarContentProps {
-  activeView: AppView
-  onSelectView: (v: AppView) => void
+  /** Закрыть мобильное меню после перехода. */
   onNavigate?: () => void
 }
 
-/** Внутреннее наполнение боковой панели. Переиспользуется на десктопе и в мобильном drawer. */
-export function SidebarContent({ activeView, onSelectView, onNavigate }: SidebarContentProps) {
+/** Наполнение боковой панели. Переиспользуется на десктопе и в мобильном drawer. */
+export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const { state, boards, activeBoardId, actions } = useBoard()
+  const { route, navigate } = useRouter()
+  const activeView = route.view
   const { authActive, user: authUser, logout } = useAuth()
   const [creating, setCreating] = useState(false)
   const [newBoardName, setNewBoardName] = useState('')
@@ -47,46 +60,45 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
   const submitBoard = () => {
     const n = newBoardName.trim()
     if (!n) return
+    // Доска создаётся с новым id, поэтому в адрес её подставит синхронизация
+    // в App — здесь достаточно перейти в раздел доски.
     actions.addBoard(n)
     setNewBoardName('')
     setCreating(false)
-    onSelectView('board')
+    navigate({ view: 'board', boardId: null, boardView: 'board', cardId: null })
     onNavigate?.()
   }
+
   // Если вошли по личному аккаунту — показываем его; иначе участника доски.
-  const user: User = authUser
+  const user: TUser = authUser
     ? {
         id: authUser.id ?? 'me',
         name: authUser.name,
         initials: authUser.initials,
         color: authUser.color,
         avatar: authUser.avatar,
-        role: authUser.role as User['role'],
+        role: authUser.role as TUser['role'],
         online: true,
       }
     : state.users[state.currentUserId]
-  const roleLabel = user.role === 'admin' ? 'Админ пространства' : 'Участник'
+  const roleLabel = user.role === 'admin' ? 'Администратор' : 'Участник'
 
-  const go = (view?: AppView) => {
-    if (view) onSelectView(view)
+  const go = (view: AppView) => {
+    navigate({ view, cardId: null })
+    onNavigate?.()
+  }
+  const openBoard = (boardId: string) => {
+    navigate({ view: 'board', boardId, boardView: 'board', cardId: null })
     onNavigate?.()
   }
 
   return (
     <>
-      {/* Лок-ап CORE: плитка 34 → зазор 11 → CORE над подписью (ТЗ «Логотип CORE» §3) */}
-      <div className="flex items-center gap-[11px] px-5 py-4">
-        <CoreTile tile={34} mark={21} radius={10} />
-        <div className="leading-[1.15]">
-          <div className="text-[16px] font-bold tracking-[0.02em] text-fg">CORE</div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-faint">
-            IT-HONA Platform
-          </div>
-        </div>
+      <div className="px-4 pb-6">
+        <CoreWordmark />
       </div>
 
-      {/* Навигация */}
-      <nav className="flex flex-col gap-[3px] px-3 py-2">
+      <nav className="flex flex-col gap-0.5 px-2">
         {NAV.map((item) => {
           const active = item.view === activeView
           return (
@@ -95,61 +107,36 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
               type="button"
               onClick={() => go(item.view)}
               className={cn(
-                'flex w-full items-center gap-3 rounded-[10px] px-2.5 py-[9px] text-[13.5px] transition-colors duration-150',
+                'flex min-h-[44px] w-full items-center gap-3 rounded-chip px-3 py-2.5 text-left text-body transition-colors ease-smooth',
                 active
-                  ? 'bg-brand-soft font-semibold text-brand'
-                  : 'font-medium text-muted hover:bg-hover hover:text-fg',
+                  ? 'bg-sidebar-active font-semibold text-white'
+                  : 'text-sidebar-fg hover:bg-sidebar-active/60',
               )}
             >
-              <item.icon size={18} strokeWidth={2} />
+              <item.icon size={20} strokeWidth={1.6} className="shrink-0" />
               {item.label}
             </button>
           )
         })}
       </nav>
 
-      {/* Рабочее пространство */}
-      <div className="mt-2 flex items-center justify-between px-5 py-2">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-faint">
-          Рабочее пространство
-        </span>
-        <button
-          type="button"
-          onClick={() => setCreating((c) => !c)}
-          aria-label="Создать доску"
-          title="Создать доску"
-          className="rounded-[6px] p-0.5 text-faint transition-colors hover:bg-hover hover:text-fg"
-        >
-          {creating ? <X size={14} strokeWidth={2} /> : <Plus size={14} strokeWidth={2} />}
-        </button>
-      </div>
-      <div className="px-3">
-        <div className="mb-1 px-3 text-caption font-semibold text-muted">{state.workspace.name}</div>
-
-        {boards.map((b) => {
-          const active = b.id === activeBoardId && activeView === 'board'
-          return (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => {
-                actions.switchBoard(b.id)
-                go('board')
-              }}
-              className={cn(
-                'flex w-full items-center gap-2 rounded-btn px-3 py-2 text-small transition-colors duration-200 ease-smooth',
-                active ? 'bg-brand-soft font-medium text-brand' : 'text-muted hover:bg-hover hover:text-fg',
-              )}
-            >
-              <span className={cn('h-2 w-2 rounded-[4px]', active ? 'bg-brand' : 'bg-line-strong')} />
-              <span className="truncate">{b.name}</span>
-              {active && <ChevronRight size={14} strokeWidth={2} className="ml-auto" />}
-            </button>
-          )
-        })}
+      {/* Проекты пространства */}
+      <div className="mt-8 px-4">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="mono-label text-sidebar-muted">Проекты</span>
+          <button
+            type="button"
+            onClick={() => setCreating((c) => !c)}
+            aria-label={creating ? 'Отменить создание' : 'Новый проект'}
+            title={creating ? 'Отменить создание' : 'Новый проект'}
+            className="flex h-7 w-7 items-center justify-center rounded-chip border border-sidebar-line text-sidebar-fg transition-colors hover:bg-sidebar-active"
+          >
+            {creating ? <X size={14} strokeWidth={1.6} /> : <Plus size={14} strokeWidth={1.6} />}
+          </button>
+        </div>
 
         {creating && (
-          <div className="mt-1 px-1">
+          <div className="mb-2">
             <input
               autoFocus
               value={newBoardName}
@@ -161,69 +148,96 @@ export function SidebarContent({ activeView, onSelectView, onNavigate }: Sidebar
                   setCreating(false)
                 }
               }}
-              placeholder="Название доски…"
-              className="w-full rounded-input border border-line bg-bg px-3 py-2 text-small text-fg outline-none focus:border-brand placeholder:text-faint"
+              placeholder="Название проекта…"
+              className="h-11 w-full rounded-chip border border-sidebar-line bg-transparent px-3 text-body text-white outline-none placeholder:text-sidebar-muted focus:border-sidebar-accent"
             />
-            <button
-              type="button"
-              onClick={submitBoard}
-              className="mt-1.5 w-full rounded-btn bg-brand px-3 py-1.5 text-caption font-medium text-white hover:bg-[#15913f]"
-            >
-              Создать
-            </button>
           </div>
         )}
+
+        <div className="flex flex-col gap-2">
+          {boards.map((b) => {
+            const active = b.id === activeBoardId && activeView === 'board'
+            return (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => openBoard(b.id)}
+                className={cn(
+                  'flex min-h-[56px] w-full items-center gap-3 rounded-chip px-3 py-2 text-left transition-colors ease-smooth',
+                  active ? 'bg-white/[0.07] shadow-[inset_3px_0_0_#33C561]' : 'hover:bg-white/[0.04]',
+                )}
+              >
+                <span className="h-2.5 w-2.5 shrink-0" style={{ background: projectDot(b) }} aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      'block truncate text-body leading-[22px] text-white',
+                      active ? 'font-semibold' : 'font-normal',
+                    )}
+                  >
+                    {b.name}
+                  </span>
+                  <span className="block truncate text-caption text-sidebar-muted">
+                    {b.total === 0
+                      ? 'Пока нет задач'
+                      : `Готово ${b.total - b.active} из ${b.total}${b.overdue > 0 ? ` · ${b.overdue} просроч.` : ''}`}
+                  </span>
+                </span>
+                <span className="mono-data shrink-0 text-[13px] text-sidebar-fg">{b.active}</span>
+              </button>
+            )
+          })}
+
+          <button
+            type="button"
+            onClick={() => go('company')}
+            className="mt-1 flex min-h-[48px] items-center gap-3 border-t border-sidebar-line px-3 text-left text-body text-sidebar-fg transition-colors hover:text-white"
+          >
+            <Folder size={18} strokeWidth={1.6} className="shrink-0" />
+            <span className="flex-1">Все проекты</span>
+            <ChevronRight size={18} strokeWidth={1.6} className="shrink-0" />
+          </button>
+        </div>
       </div>
 
       {/* Пользователь */}
-      <div className="mt-auto border-t border-line p-3">
-        <div
-          className={cn(
-            'flex items-center gap-2.5 rounded-btn px-2 py-2 transition-colors',
-            activeView === 'profile' ? 'bg-hover' : 'hover:bg-hover',
-          )}
+      <div className="mt-auto flex items-center gap-3 border-t border-sidebar-line px-4 pt-6">
+        <button
+          type="button"
+          onClick={() => go('profile')}
+          title="Мой профиль"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
+          <Avatar user={user} size="md" tone="brand" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-caption font-semibold text-white">{user.name}</span>
+            <span className="mono-data block truncate text-sidebar-muted">{roleLabel.toUpperCase()}</span>
+          </span>
+        </button>
+        {authActive && (
           <button
             type="button"
-            onClick={() => go('profile')}
-            title="Мой профиль"
-            className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+            onClick={() => void logout()}
+            className="mono-data shrink-0 text-sidebar-muted transition-colors hover:text-white"
           >
-            <Avatar user={user} size="md" showStatus />
-            <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-small font-medium text-fg">{user.name}</span>
-              <span className="block truncate text-caption text-faint">{roleLabel}</span>
-            </span>
+            Выйти
           </button>
-          {authActive ? (
-            <button
-              type="button"
-              onClick={() => void logout()}
-              title="Выйти"
-              aria-label="Выйти"
-              className="shrink-0 rounded-btn p-1.5 text-muted transition-colors hover:bg-hover hover:text-error"
-            >
-              <LogOut size={16} strokeWidth={2} />
-            </button>
-          ) : (
-            <Settings size={16} strokeWidth={2} className="shrink-0 text-muted" />
-          )}
-        </div>
+        )}
+      </div>
+
+      <div className="px-4 pt-4">
+        <p className="mono-label text-sidebar-muted">IT-HONA CORE</p>
+        <p className="mt-1 text-caption text-sidebar-muted">Системы. Люди. Развитие.</p>
       </div>
     </>
   )
 }
 
-interface SidebarProps {
-  activeView: AppView
-  onSelectView: (v: AppView) => void
-}
-
-/** Боковая панель для десктопа (скрыта на узких экранах — там мобильное меню). */
-export function Sidebar({ activeView, onSelectView }: SidebarProps) {
+/** Боковая панель десктопа: 240px, тёмно-зелёная в обеих темах (брендбук §06). */
+export function Sidebar() {
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-sidebar lg:flex">
-      <SidebarContent activeView={activeView} onSelectView={onSelectView} />
+    <aside className="hidden w-60 shrink-0 flex-col overflow-y-auto bg-sidebar py-6 lg:flex">
+      <SidebarContent />
     </aside>
   )
 }
