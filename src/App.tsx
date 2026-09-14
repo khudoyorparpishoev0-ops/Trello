@@ -10,6 +10,7 @@ import { Timeline } from '@/components/board/Timeline'
 import { CardDetailDrawer } from '@/components/board/CardDetailDrawer'
 import { StickerMenuProvider } from '@/components/board/StickerMenu'
 import { Dashboard } from '@/components/dashboard/Dashboard'
+import { Brief } from '@/components/brief/Brief'
 import { Company } from '@/components/company/Company'
 import { Calendar } from '@/components/calendar/Calendar'
 import { Reports } from '@/components/reports/Reports'
@@ -47,6 +48,7 @@ export default function App() {
             </>
           )}
           {view === 'dashboard' && <Dashboard onMenuClick={() => setNavOpen(true)} onOpenCard={openCard} />}
+          {view === 'brief' && <Brief onMenuClick={() => setNavOpen(true)} onOpenCard={openCard} />}
           {view === 'company' && (
             <Company onMenuClick={() => setNavOpen(true)} onNavigateBoard={() => navigate({ view: 'board' })} />
           )}

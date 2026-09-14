@@ -7,7 +7,7 @@
  * в `store/router.tsx`.
  *
  * Схема адресов:
- *   /dashboard · /team · /calendar · /company · /reports · /settings
+ *   /dashboard · /brief · /team · /calendar · /company · /reports · /settings
  *   /board/<boardId>            — канбан
  *   /board/<boardId>/timeline   — таймлайн
  *   /board/<boardId>/table      — таблица
@@ -18,7 +18,7 @@
  * в адресе нет.
  */
 
-export type AppView = 'board' | 'dashboard' | 'company' | 'calendar' | 'team' | 'reports' | 'profile'
+export type AppView = 'board' | 'dashboard' | 'brief' | 'company' | 'calendar' | 'team' | 'reports' | 'profile'
 export type BoardViewKind = 'board' | 'timeline' | 'table'
 
 export interface Route {
@@ -33,6 +33,7 @@ export interface Route {
 /** Первый сегмент пути ↔ раздел. Раздел профиля адресуется понятным «settings». */
 const SEGMENT_TO_VIEW: Record<string, AppView> = {
   dashboard: 'dashboard',
+  brief: 'brief',
   board: 'board',
   team: 'team',
   calendar: 'calendar',
@@ -42,6 +43,7 @@ const SEGMENT_TO_VIEW: Record<string, AppView> = {
 }
 const VIEW_TO_SEGMENT: Record<AppView, string> = {
   dashboard: 'dashboard',
+  brief: 'brief',
   board: 'board',
   team: 'team',
   calendar: 'calendar',

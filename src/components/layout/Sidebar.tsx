@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  Radar,
   LayoutDashboard,
   Columns3,
   Users,
@@ -27,6 +28,8 @@ import { cn } from '@/lib/utils'
  * экран был реализован, но в прежнем меню отсутствовал и оставался недостижим.
  */
 const NAV: { icon: LucideIcon; label: string; view: AppView }[] = [
+  // Брифинг стоит над разделами: он собирает данные всех остальных.
+  { icon: Radar, label: 'AI-бриф', view: 'brief' },
   { icon: LayoutDashboard, label: 'Дашборд', view: 'dashboard' },
   { icon: Columns3, label: 'Доска', view: 'board' },
   { icon: Users, label: 'Команда', view: 'team' },

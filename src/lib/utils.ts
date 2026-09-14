@@ -198,3 +198,21 @@ export function backfillTaskCodes<T extends { id: string; createdAt?: string; co
   }
   return next
 }
+
+/**
+ * Русское склонение после числа: plural(3, ['проект', 'проекта', 'проектов']).
+ * Формы в порядке «один / два / пять».
+ */
+export function plural(n: number, forms: [string, string, string]): string {
+  const abs = Math.abs(n) % 100
+  const last = abs % 10
+  if (abs > 10 && abs < 20) return forms[2]
+  if (last > 1 && last < 5) return forms[1]
+  if (last === 1) return forms[0]
+  return forms[2]
+}
+
+/** Число со склонённым словом: «3 проекта». */
+export function countOf(n: number, forms: [string, string, string]): string {
+  return `${n} ${plural(n, forms)}`
+}

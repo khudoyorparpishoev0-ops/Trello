@@ -13,6 +13,8 @@ import {
   dueStatus,
   formatDate,
   nextTaskCode,
+  countOf,
+  plural,
   taskCode,
   uid,
 } from '../../src/lib/utils.ts'
@@ -326,4 +328,24 @@ test('логин из почты: пустой ввод не роняет фор
 
 test('логин из почты: адрес без «@» используется целиком', () => {
   assert.equal(loginFromEmail('ivan'), 'ivan')
+})
+
+// ——— Склонение после числа ———
+
+test('склонение: один / два / пять', () => {
+  const forms: [string, string, string] = ['проект', 'проекта', 'проектов']
+  assert.equal(countOf(1, forms), '1 проект')
+  assert.equal(countOf(2, forms), '2 проекта')
+  assert.equal(countOf(5, forms), '5 проектов')
+  assert.equal(countOf(0, forms), '0 проектов')
+})
+
+test('склонение: подростковые числа и десятки', () => {
+  const forms: [string, string, string] = ['задача', 'задачи', 'задач']
+  // 11–14 всегда «задач», сколько бы ни было на конце.
+  for (const n of [11, 12, 13, 14, 111, 112]) assert.equal(plural(n, forms), 'задач', String(n))
+  assert.equal(plural(21, forms), 'задача')
+  assert.equal(plural(22, forms), 'задачи')
+  assert.equal(plural(25, forms), 'задач')
+  assert.equal(plural(101, forms), 'задача')
 })

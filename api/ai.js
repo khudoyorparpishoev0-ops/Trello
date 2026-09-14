@@ -139,10 +139,13 @@ export async function runAgent(agentId, dataset) {
  * CORE. В ответе — ссылки на наблюдения по id, а не их пересказ.
  */
 export async function runExecutive(findings) {
-  if (!aiEnabled()) throw Object.assign(new Error('AI не настроен'), { status: 503 })
+  // Сначала проверяется сам запрос: неверный вход остаётся неверным и при
+  // выключенном AI, и отвечать на него «сервис не настроен» — вводить в
+  // заблуждение.
   if (!Array.isArray(findings) || findings.length === 0) {
     throw Object.assign(new Error('нет наблюдений для сводки'), { status: 400 })
   }
+  if (!aiEnabled()) throw Object.assign(new Error('AI не настроен'), { status: 503 })
 
   // До модели доходит ровно столько, сколько нужно для приоритизации.
   const input = findings.map((f) => ({

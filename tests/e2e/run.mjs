@@ -526,7 +526,120 @@ const run = async () => {
     r.check((await denied.getByRole('alert').count()) === 0, 'сообщение закрывается')
     await denied.context().close()
 
-    // ——— 15. Ошибка сервера ———
+    // ——— 15. AI-бриф: слой над разделами ———
+    r.section('AI-бриф')
+
+    // Без настроенного провайдера факты всё равно должны быть на экране:
+    // аналитика от AI не зависит.
+    const offPage = await newPage({}, {
+      '/api/ai/status': (_route, send) => send({ enabled: false, reason: 'AI не настроен' }),
+    })
+    await offPage.goto(site.base + '/brief', { waitUntil: 'domcontentloaded' })
+    await offPage.getByRole('heading', { name: 'AI-бриф', level: 1 }).waitFor({ timeout: 8000 })
+    await offPage.getByRole('heading', { name: 'Факты', level: 2 }).waitFor()
+    r.check(true, 'при выключенном AI факты аналитики показаны')
+    r.check(
+      (await offPage.getByText('AI выключен').count()) > 0,
+      'выключенный AI объяснён, а не выглядит поломкой',
+    )
+    await offPage.getByText('AI выключен').waitFor({ timeout: 8000 })
+    r.check(
+      await offPage.getByRole('button', { name: /Собрать брифинг/ }).isDisabled(),
+      'кнопка сбора недоступна без провайдера',
+    )
+    const offFacts = await offPage.getByRole('heading', { name: 'Факты', level: 2 }).locator('..').locator('..').innerText()
+    r.check(!/NaN|undefined/.test(offFacts), 'в фактах нет NaN/undefined')
+    await offPage.context().close()
+
+    // С провайдером: конвейер прогоняется целиком, выдуманный вывод обязан
+    // быть отброшен проверкой и не дойти до экрана.
+    const aiPage = await newPage({}, {
+      '/api/ai/status': (_route, send) => send({ enabled: true, model: 'test-model' }),
+      '/api/ai/agent': (route, send) => {
+        const body = route.request().postDataJSON() ?? {}
+        // Честное наблюдение берёт число из присланного датасета.
+        const numbers = []
+        const walk = (v) => {
+          if (typeof v === 'number' && Number.isFinite(v)) numbers.push(v)
+          else if (Array.isArray(v)) v.forEach(walk)
+          else if (v && typeof v === 'object') Object.values(v).forEach(walk)
+        }
+        walk(body.dataset)
+        return send({
+          agent: body.agent,
+          at: new Date().toISOString(),
+          findings: [
+            {
+              id: `${body.agent}_1`,
+              agent: body.agent,
+              title: `Наблюдение ${body.agent}`,
+              severity: 'critical',
+              fact: 'Факт из данных.',
+              interpretation: 'Толкование агента.',
+              recommendation: 'Что предлагается сделать.',
+              evidence: { metrics: [{ name: 'из данных', value: numbers[0] ?? 0 }] },
+            },
+            {
+              id: `${body.agent}_2`,
+              agent: body.agent,
+              title: `Выдумка ${body.agent}`,
+              severity: 'critical',
+              fact: 'Число, которого не было в данных.',
+              interpretation: 'Толкование агента.',
+              recommendation: 'Что предлагается сделать.',
+              evidence: { metrics: [{ name: 'выдумка', value: 987654 }] },
+            },
+          ],
+        })
+      },
+      '/api/ai/executive': (route, send) => {
+        const body = route.request().postDataJSON() ?? {}
+        return send({
+          at: new Date().toISOString(),
+          summary: 'Сводка руководителя по проверенным наблюдениям.',
+          attentionIds: [...(body.findings ?? []).map((f) => f.id), 'выдуманный_id'],
+          watchIds: [],
+          ok: [],
+        })
+      },
+    })
+    await aiPage.goto(site.base + '/brief', { waitUntil: 'domcontentloaded' })
+    await aiPage.getByRole('heading', { name: 'AI-бриф', level: 1 }).waitFor({ timeout: 8000 })
+    await aiPage.getByRole('button', { name: /Собрать брифинг/ }).click()
+    await aiPage.getByRole('heading', { name: 'Сводка', level: 2 }).waitFor({ timeout: 15000 })
+    r.check(true, 'брифинг собирается')
+
+    const briefText = await aiPage.locator('body').innerText()
+    r.check(briefText.includes('Наблюдение'), 'проверенные наблюдения показаны')
+
+    // Карточка наблюдения — это <article>. Выдуманный вывод не должен стать
+    // карточкой; в блоке «Проверка выводов» он, наоборот, обязан быть назван.
+    const cards = await aiPage.locator('article').allInnerTexts()
+    r.check(
+      cards.length > 0 && cards.every((t) => !t.includes('Выдумка')),
+      'выдуманный вывод не становится наблюдением на экране',
+    )
+    r.check(
+      /Отклонено \d+ вывод/.test(briefText) && briefText.includes('Выдумка'),
+      'отклонённые выводы названы поимённо, а не спрятаны',
+    )
+
+    // Рубрики набраны капслоком средствами CSS: в разметке лежит «Факт».
+    r.check(
+      /ФАКТ/i.test(cards.join(' ')) && /ИНТЕРПРЕТАЦИЯ AI/i.test(cards.join(' ')),
+      'факт и интерпретация подписаны раздельно',
+    )
+
+    // Доказательство должно раскрываться — иначе вывод нечем проверить.
+    await aiPage.getByText('Доказательства').first().click()
+    await aiPage.waitForTimeout(150)
+    r.check(
+      (await aiPage.getByText('из данных', { exact: false }).count()) > 0,
+      'доказательства вывода раскрываются',
+    )
+    await aiPage.context().close()
+
+    // ——— 16. Ошибка сервера ———
     r.section('Обработка ошибок')
     const broken = await newPage({}, {
       '/api/board': (_route, send) => send({ error: 'internal_error' }, 500),
