@@ -9,7 +9,7 @@ import {
   Layers,
   type LucideIcon,
 } from 'lucide-react'
-import type { Card, User } from '@/types'
+import type { User } from '@/types'
 import { useBoard } from '@/store/boardStore'
 import { useNow } from '@/store/now'
 import { fetchUsers, type AuthUser } from '@/lib/api'
@@ -17,16 +17,21 @@ import { ScreenHeader } from '@/components/layout/ScreenHeader'
 import { Avatar, AvatarStack } from '@/components/ui/Avatar'
 import { PriorityDot } from '@/components/ui/Priority'
 import { Pill } from '@/components/ui/Badge'
-import { isListDone } from '@/lib/design'
-import { cn, dueStatus, formatDate, taskCode, timeAgo } from '@/lib/utils'
+import { cn, formatDate, taskCode, timeAgo } from '@/lib/utils'
+import {
+  WORKLOAD_NORM,
+  getDeadlineQueue,
+  getProjectMetrics,
+  getRecentActivity,
+  getWorkloadByDepartment,
+  getWorkloadByEmployee,
+} from '@/analytics'
+import { useAnalytics } from '@/analytics/useAnalytics'
 
 interface DashboardProps {
   onMenuClick: () => void
   onOpenCard?: (id: string) => void
 }
-
-/** Норма активных задач на человека — база расчёта загрузки. */
-const NORM = 4
 
 /**
  * Дашборд.
@@ -37,7 +42,7 @@ const NORM = 4
  * нет», а не придуманное число.
  */
 export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
-  const { state, departments } = useBoard()
+  const { state } = useBoard()
   const now = useNow()
   const [people, setPeople] = useState<AuthUser[]>([])
 
@@ -49,121 +54,50 @@ export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
     }
   }, [])
 
+  const ix = useAnalytics()
+  const boardId = state.board?.id ?? ''
+  const scope = useMemo(() => ({ boardId }), [boardId])
+
+  /**
+   * Все цифры экрана приходят из слоя аналитики. Дашборд ничего не считает
+   * сам: «выполнено», «просрочено» и загрузка имеют один источник расчёта.
+   */
   const m = useMemo(() => {
-    const { board, lists, cards, users } = state
-    const doneByCard: Record<string, boolean> = {}
-    for (const lid of board.listIds) {
-      const list = lists[lid]
-      if (!list) continue
-      const done = isListDone(list)
-      for (const cid of list.cardIds) doneByCard[cid] = done
-    }
-
-    const all = Object.values(cards)
-    let total = 0
-    let done = 0
-    let overdue = 0
-    const byPriority: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 }
-    const load: Record<string, number> = {}
-    const deadlines: Card[] = []
-
-    for (const c of all) {
-      total += 1
-      if (doneByCard[c.id]) {
-        done += 1
-        continue
-      }
-      byPriority[c.priority] += 1
-      for (const uid of c.assigneeIds) load[uid] = (load[uid] ?? 0) + 1
-      if (dueStatus(c.dueDate, false, new Date(now)) === 'overdue') overdue += 1
-      if (c.dueDate) deadlines.push(c)
-    }
-    const active = total - done
-
-    const members = board.memberIds.map((id) => users[id]).filter(Boolean)
-    const workload = members
-      .map((u) => ({
-        user: u,
-        count: load[u.id] ?? 0,
-        pct: Math.min(100, Math.round(((load[u.id] ?? 0) / NORM) * 100)),
-      }))
-      .sort((a, b) => b.count - a.count)
-    const avgPct = members.length
-      ? Math.round(workload.reduce((s, w) => s + w.pct, 0) / members.length)
-      : 0
-
-    deadlines.sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
-
-    // Лента активности из реальных данных: комментарии и создание карточек.
-    const feed: { id: string; at: string; who?: User; text: string; cardId: string }[] = []
-    for (const c of all) {
-      feed.push({
-        id: `new_${c.id}`,
-        at: c.createdAt,
-        text: `создана задача «${c.title}»`,
-        cardId: c.id,
-      })
-      for (const cm of c.comments) {
-        feed.push({
-          id: cm.id,
-          at: cm.createdAt,
-          who: users[cm.authorId],
-          text: `оставил(а) сообщение в «${c.title}»`,
-          cardId: c.id,
-        })
-      }
-    }
-    feed.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    const project = getProjectMetrics(ix, boardId)
+    const counts = project?.counts ?? { total: 0, done: 0, active: 0, overdue: 0, dueSoon: 0, unassigned: 0, noDueDate: 0 }
+    const memberIds = new Set(state.board?.memberIds ?? [])
+    const rows = getWorkloadByEmployee(ix, scope).filter((r) => memberIds.has(r.userId))
 
     return {
-      total,
-      done,
-      active,
-      overdue,
-      byPriority,
-      workload,
-      avgPct,
-      doneByCard,
-      deadlines: deadlines.slice(0, 5),
-      feed: feed.slice(0, 5),
-      members,
+      total: counts.total,
+      done: counts.done,
+      active: counts.active,
+      overdue: counts.overdue,
+      byPriority: project?.byPriority ?? { critical: 0, high: 0, medium: 0, low: 0 },
+      workload: rows.map((r) => ({ user: state.users[r.userId], count: r.active, pct: r.workload })),
+      avgPct: rows.length ? Math.round(rows.reduce((s, r) => s + r.workload, 0) / rows.length) : 0,
+      members: rows.map((r) => state.users[r.userId]).filter(Boolean),
+      deadlines: getDeadlineQueue(ix, scope).slice(0, 5),
+      feed: getRecentActivity(ix, scope, 5),
     }
-  }, [state, now])
+  }, [ix, boardId, scope, state.board, state.users])
 
   /**
    * Загрузка по отделам. Отдел берётся из профилей сотрудников, задачи — из
    * назначений. Отдел без людей или без задач честно помечается пустым, а не
    * получает выдуманный план.
    */
-  const depts = useMemo(() => {
-    const byDept: Record<string, { users: User[]; total: number; done: number }> = {}
-    for (const name of departments) byDept[name] = { users: [], total: 0, done: 0 }
-
-    for (const u of Object.values(state.users)) {
-      const d = u.department
-      if (d && byDept[d]) byDept[d].users.push(u)
-    }
-    for (const c of Object.values(state.cards)) {
-      const seen = new Set<string>()
-      for (const uid of c.assigneeIds) {
-        const d = state.users[uid]?.department
-        if (!d || !byDept[d] || seen.has(d)) continue
-        seen.add(d)
-        byDept[d].total += 1
-        if (m.doneByCard[c.id]) byDept[d].done += 1
-      }
-    }
-    return departments.map((name) => {
-      const d = byDept[name]
-      return {
-        name,
-        users: d.users,
+  const depts = useMemo(
+    () =>
+      getWorkloadByDepartment(ix, scope).map((d) => ({
+        name: d.department,
+        users: d.userIds.map((id) => state.users[id]).filter(Boolean),
         total: d.total,
         done: d.done,
-        pct: d.total > 0 ? Math.round((d.done / d.total) * 100) : 0,
-      }
-    })
-  }, [departments, state.users, state.cards, m.doneByCard])
+        pct: d.completion,
+      })),
+    [ix, scope, state.users],
+  )
 
   // Отделы без людей и задач не занимают место кольцами — уходят строкой ниже.
   const activeDepts = depts.filter((d) => d.total > 0 || d.users.length > 0)
@@ -243,7 +177,7 @@ export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
               label="Загрузка команды"
               value={`${m.avgPct}%`}
               tone={m.avgPct >= 90 ? 'err' : m.avgPct >= 70 ? 'warn' : 'brand'}
-              note={`Норма — ${NORM} задачи на человека`}
+              note={`Норма — ${WORKLOAD_NORM} задачи на человека`}
               meter={[
                 { value: m.avgPct, color: m.avgPct >= 90 ? 'var(--err)' : m.avgPct >= 70 ? 'var(--warn)' : 'var(--green)' },
                 { value: Math.max(0, 100 - m.avgPct), color: 'var(--track)' },
@@ -331,35 +265,38 @@ export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {m.deadlines.map((c) => {
-                        const st = dueStatus(c.dueDate, m.doneByCard[c.id] ?? false, new Date(now))
-                        return (
-                          <tr
-                            key={c.id}
-                            onClick={() => onOpenCard?.(c.id)}
-                            className="h-14 cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-hover"
-                          >
-                            <td className="mono-data px-6 text-muted">{taskCode(c)}</td>
-                            <td className="max-w-0 px-3">
-                              <span className="flex items-center gap-2">
-                                <PriorityDot priority={c.priority} />
-                                <span className="truncate text-body text-fg">{c.title}</span>
-                              </span>
-                            </td>
-                            <td className="mono-data px-3 text-muted">
-                              {formatDate(c.dueDate!).toUpperCase()}
-                            </td>
-                            <td className="px-6 text-right">
-                              <Pill
-                                tone={st === 'overdue' ? 'err' : st === 'soon' ? 'warn' : 'muted'}
-                                rule={st === 'overdue' || st === 'soon'}
-                              >
-                                {st === 'overdue' ? 'Просрочено' : st === 'soon' ? 'Скоро' : 'В срок'}
-                              </Pill>
-                            </td>
-                          </tr>
-                        )
-                      })}
+                      {m.deadlines.map((t) => (
+                        <tr
+                          key={t.cardId}
+                          onClick={() => onOpenCard?.(t.cardId)}
+                          className="h-14 cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-hover"
+                        >
+                          <td className="mono-data px-6 text-muted">
+                            {taskCode({ id: t.cardId, code: t.code })}
+                          </td>
+                          <td className="max-w-0 px-3">
+                            <span className="flex items-center gap-2">
+                              <PriorityDot priority={t.priority} />
+                              <span className="truncate text-body text-fg">{t.title}</span>
+                            </span>
+                          </td>
+                          <td className="mono-data px-3 text-muted">
+                            {formatDate(t.dueDate as string).toUpperCase()}
+                          </td>
+                          <td className="px-6 text-right">
+                            <Pill
+                              tone={t.dueState === 'overdue' ? 'err' : t.dueState === 'soon' ? 'warn' : 'muted'}
+                              rule={t.dueState === 'overdue' || t.dueState === 'soon'}
+                            >
+                              {t.dueState === 'overdue'
+                                ? 'Просрочено'
+                                : t.dueState === 'soon'
+                                  ? 'Скоро'
+                                  : 'В срок'}
+                            </Pill>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -371,25 +308,30 @@ export function Dashboard({ onMenuClick, onOpenCard }: DashboardProps) {
                 <Empty text="Событий пока нет" hint="Создайте задачу или напишите в чат задачи." />
               ) : (
                 <ul className="flex flex-col gap-4 border-l border-line pl-4">
-                  {m.feed.map((f) => (
-                    <li key={f.id} className="relative">
-                      <span
-                        className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 border border-surface bg-brand"
-                        aria-hidden
-                      />
-                      <button
-                        type="button"
-                        onClick={() => onOpenCard?.(f.cardId)}
-                        className="block w-full text-left"
-                      >
-                        <span className="mono-data block text-faint">{timeAgo(f.at, now)}</span>
-                        <span className="mt-1 block text-caption text-fg">
-                          {f.who ? <span className="font-semibold">{f.who.name} </span> : null}
-                          {f.text}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                  {m.feed.map((f) => {
+                    const who = f.userId ? state.users[f.userId] : undefined
+                    return (
+                      <li key={f.id} className="relative">
+                        <span
+                          className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 border border-surface bg-brand"
+                          aria-hidden
+                        />
+                        <button
+                          type="button"
+                          onClick={() => onOpenCard?.(f.cardId)}
+                          className="block w-full text-left"
+                        >
+                          <span className="mono-data block text-faint">{timeAgo(f.at, now)}</span>
+                          <span className="mt-1 block text-caption text-fg">
+                            {who ? <span className="font-semibold">{who.name} </span> : null}
+                            {f.kind === 'comment'
+                              ? `оставил(а) сообщение в «${f.cardTitle}»`
+                              : `создана задача «${f.cardTitle}»`}
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </Panel>

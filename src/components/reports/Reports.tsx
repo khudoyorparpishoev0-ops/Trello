@@ -1,14 +1,18 @@
 import { useMemo, type ReactNode } from 'react'
-import type { Card } from '@/types'
 import { useBoard } from '@/store/boardStore'
 import { ScreenHeader } from '@/components/layout/ScreenHeader'
 import { Avatar } from '@/components/ui/Avatar'
 import { Pill } from '@/components/ui/Badge'
 import { PriorityDot } from '@/components/ui/Priority'
-import { isListDone } from '@/lib/design'
-import { cn, dueStatus, formatDate, taskCode } from '@/lib/utils'
-
-const DAY = 86_400_000
+import { cn, formatDate, taskCode } from '@/lib/utils'
+import {
+  getEmployeeMetrics,
+  getOverdueTasks,
+  getProjectMetrics,
+  getUpcomingDeadlines,
+  type TaskRef,
+} from '@/analytics'
+import { useAnalytics } from '@/analytics/useAnalytics'
 
 interface ReportsProps {
   onMenuClick: () => void
@@ -18,60 +22,43 @@ interface ReportsProps {
 export function Reports({ onMenuClick, onOpenCard }: ReportsProps) {
   const { state } = useBoard()
 
+  const ix = useAnalytics()
+  const boardId = state.board?.id ?? ''
+
+  /**
+   * Отчёт ничего не считает сам: и сводка, и разрез по сотрудникам, и списки
+   * задач приходят из слоя аналитики. Один показатель — один источник расчёта.
+   */
   const data = useMemo(() => {
-    const { board, lists, cards, users } = state
-    const doneByCard: Record<string, boolean> = {}
-    for (const lid of board.listIds) {
-      const done = isListDone(lists[lid])
-      for (const cid of lists[lid].cardIds) doneByCard[cid] = done
-    }
-    const all = Object.values(cards)
-    const now = Date.now()
+    const scope = { boardId }
+    const project = getProjectMetrics(ix, boardId)
+    const counts = project?.counts ?? { total: 0, done: 0, active: 0, overdue: 0, dueSoon: 0, unassigned: 0, noDueDate: 0 }
 
-    // Общая сводка
-    let total = 0
-    let done = 0
-    let overdue = 0
-    for (const c of all) {
-      total += 1
-      if (doneByCard[c.id]) done += 1
-      else if (dueStatus(c.dueDate, false) === 'overdue') overdue += 1
-    }
-
-    // По сотрудникам
-    const perUser = board.memberIds
-      .map((uid) => {
-        const u = users[uid]
-        let t = 0
-        let d = 0
-        let ov = 0
-        for (const c of all) {
-          if (!c.assigneeIds.includes(uid)) continue
-          t += 1
-          if (doneByCard[c.id]) d += 1
-          else if (dueStatus(c.dueDate, false) === 'overdue') ov += 1
-        }
-        return { user: u, total: t, active: t - d, done: d, overdue: ov, pct: t ? Math.round((d / t) * 100) : 0 }
-      })
+    const perUser = (state.board?.memberIds ?? [])
+      .map((uid) => ({ uid, m: getEmployeeMetrics(ix, uid, scope) }))
+      .filter((r): r is { uid: string; m: NonNullable<ReturnType<typeof getEmployeeMetrics>> } => r.m !== null)
+      .map(({ uid, m }) => ({
+        user: state.users[uid],
+        total: m.counts.total,
+        active: m.counts.active,
+        done: m.counts.done,
+        overdue: m.counts.overdue,
+        pct: m.completion,
+      }))
       .filter((r) => r.user && r.total > 0)
       .sort((a, b) => b.total - a.total)
 
-    // Просроченные и ближайшие
-    const overdueCards = all
-      .filter((c) => !doneByCard[c.id] && dueStatus(c.dueDate, false) === 'overdue')
-      .map((c) => ({ card: c, days: Math.floor((now - new Date(c.dueDate!).getTime()) / DAY) }))
-      .sort((a, b) => b.days - a.days)
-
-    const upcoming = all
-      .filter((c) => {
-        if (doneByCard[c.id] || !c.dueDate) return false
-        const diff = new Date(c.dueDate).getTime() - now
-        return diff >= 0 && diff <= 7 * DAY
-      })
-      .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-
-    return { total, done, active: total - done, overdue, perUser, overdueCards, upcoming, completion: total ? Math.round((done / total) * 100) : 0 }
-  }, [state])
+    return {
+      total: counts.total,
+      done: counts.done,
+      active: counts.active,
+      overdue: counts.overdue,
+      completion: project?.completion ?? 0,
+      perUser,
+      overdueCards: getOverdueTasks(ix, scope),
+      upcoming: getUpcomingDeadlines(ix, scope, 7),
+    }
+  }, [ix, boardId, state.board, state.users])
 
   return (
     <div className="flex h-full flex-col">
@@ -141,10 +128,15 @@ export function Reports({ onMenuClick, onOpenCard }: ReportsProps) {
               <Empty>Просроченных задач нет</Empty>
             ) : (
               <div className="flex flex-col gap-2">
-                {data.overdueCards.map(({ card, days }) => (
-                  <TaskRow key={card.id} card={card} users={state.users} onOpen={() => onOpenCard(card.id)}>
+                {data.overdueCards.map((task) => (
+                  <TaskRow
+                    key={task.cardId}
+                    task={task}
+                    users={state.users}
+                    onOpen={() => onOpenCard(task.cardId)}
+                  >
                     <Pill tone="err" rule>
-                      {days === 0 ? 'сегодня' : `${days} дн.`}
+                      {task.overdueDays === 0 ? 'сегодня' : `${task.overdueDays} дн.`}
                     </Pill>
                   </TaskRow>
                 ))}
@@ -158,10 +150,15 @@ export function Reports({ onMenuClick, onOpenCard }: ReportsProps) {
               <Empty>На ближайшую неделю дедлайнов нет</Empty>
             ) : (
               <div className="flex flex-col gap-2">
-                {data.upcoming.map((card) => (
-                  <TaskRow key={card.id} card={card} users={state.users} onOpen={() => onOpenCard(card.id)}>
+                {data.upcoming.map((task) => (
+                  <TaskRow
+                    key={task.cardId}
+                    task={task}
+                    users={state.users}
+                    onOpen={() => onOpenCard(task.cardId)}
+                  >
                     <span className="mono-data shrink-0 bg-mist px-2 py-1 text-muted">
-                      {formatDate(card.dueDate!).toUpperCase()}
+                      {formatDate(task.dueDate as string).toUpperCase()}
                     </span>
                   </TaskRow>
                 ))}
@@ -216,26 +213,28 @@ function Empty({ children }: { children: ReactNode }) {
 }
 
 function TaskRow({
-  card,
+  task,
   users,
   onOpen,
   children,
 }: {
-  card: Card
+  task: TaskRef
   users: Record<string, { id: string; name: string; initials: string; color: string }>
   onOpen: () => void
   children: ReactNode
 }) {
-  const assignee = card.assigneeIds.map((id) => users[id]).filter(Boolean)[0]
+  const assignee = task.assigneeIds.map((id) => users[id]).filter(Boolean)[0]
   return (
     <button
       type="button"
       onClick={onOpen}
       className="flex min-h-[44px] items-center gap-3 rounded-chip border border-line bg-mist px-3 py-2 text-left transition-colors hover:border-line-strong"
     >
-      <PriorityDot priority={card.priority} />
-      <span className="mono-data shrink-0 text-faint">{taskCode(card)}</span>
-      <span className="min-w-0 flex-1 truncate text-body text-fg">{card.title}</span>
+      <PriorityDot priority={task.priority} />
+      <span className="mono-data shrink-0 text-faint">
+        {taskCode({ id: task.cardId, code: task.code })}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-body text-fg">{task.title}</span>
       {assignee && <Avatar user={assignee} size="md" />}
       {children}
     </button>

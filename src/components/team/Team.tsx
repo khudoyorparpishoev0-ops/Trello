@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react'
 import { Users, ListChecks, Clock, Gauge, Search, type LucideIcon } from 'lucide-react'
 import type { User } from '@/types'
 import { useBoard } from '@/store/boardStore'
-import { useNow } from '@/store/now'
 import { ScreenHeader } from '@/components/layout/ScreenHeader'
 import { Avatar } from '@/components/ui/Avatar'
 import { Pill } from '@/components/ui/Badge'
-import { isListDone } from '@/lib/design'
-import { cn, dueStatus } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { getWorkloadByDepartment, getWorkloadByEmployee } from '@/analytics'
+import { useAnalytics } from '@/analytics/useAnalytics'
 
 interface TeamProps {
   onMenuClick: () => void
@@ -19,9 +19,6 @@ const ROLE_LABEL: Record<string, string> = {
   observer: 'Наблюдатель',
 }
 
-/** Норма активных задач на человека — база расчёта загрузки. */
-const NORM = 4
-
 const COLS = 'grid-cols-[minmax(200px,2fr)_1.2fr_1fr_88px_88px_minmax(160px,1.4fr)]'
 
 interface Row {
@@ -32,32 +29,27 @@ interface Row {
 }
 
 export function Team({ onMenuClick }: TeamProps) {
-  const { state, departments } = useBoard()
-  const now = useNow()
+  const { state } = useBoard()
   const [tab, setTab] = useState<'people' | 'departments'>('people')
   const [query, setQuery] = useState('')
 
-  const rows = useMemo<Row[]>(() => {
-    // Карта cardId → список (для определения статуса «Готово»).
-    const listOf: Record<string, string> = {}
-    for (const l of Object.values(state.lists)) for (const cid of l.cardIds) listOf[cid] = l.id
+  const ix = useAnalytics()
+  const boardId = state.board?.id ?? ''
+  const scope = useMemo(() => ({ boardId }), [boardId])
 
-    return Object.values(state.users)
-      .map((u) => {
-        let active = 0
-        let overdue = 0
-        for (const c of Object.values(state.cards)) {
-          if (!c.assigneeIds.includes(u.id)) continue
-          const list = state.lists[listOf[c.id]]
-          const done = list ? isListDone(list) : false
-          if (done) continue
-          active++
-          if (dueStatus(c.dueDate, done, new Date(now)) === 'overdue') overdue++
-        }
-        return { u, active, overdue, load: Math.min(100, Math.round((active / NORM) * 100)) }
-      })
-      .sort((a, b) => b.active - a.active)
-  }, [state.users, state.cards, state.lists, now])
+  // Загрузка приходит из слоя аналитики — здесь она только раскладывается по строкам.
+  const rows = useMemo<Row[]>(
+    () =>
+      getWorkloadByEmployee(ix, scope)
+        .filter((r) => state.users[r.userId])
+        .map((r) => ({
+          u: state.users[r.userId],
+          active: r.active,
+          overdue: r.overdue,
+          load: r.workload,
+        })),
+    [ix, scope, state.users],
+  )
 
   const q = query.trim().toLowerCase()
   const visible = q
@@ -74,16 +66,14 @@ export function Team({ onMenuClick }: TeamProps) {
 
   const deptRows = useMemo(
     () =>
-      departments.map((name) => {
-        const members = rows.filter((r) => r.u.department === name)
-        const active = members.reduce((s, r) => s + r.active, 0)
-        const overdue = members.reduce((s, r) => s + r.overdue, 0)
-        const load = members.length
-          ? Math.round(members.reduce((s, r) => s + r.load, 0) / members.length)
-          : 0
-        return { name, members, active, overdue, load }
-      }),
-    [departments, rows],
+      getWorkloadByDepartment(ix, scope).map((d) => ({
+        name: d.department,
+        members: rows.filter((r) => d.userIds.includes(r.u.id)),
+        active: d.active,
+        overdue: d.overdue,
+        load: d.avgWorkload,
+      })),
+    [ix, scope, rows],
   )
 
   return (

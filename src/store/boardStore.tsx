@@ -12,8 +12,8 @@ import {
 import type { AppData, Board, BoardState, Card, Checklist, List, Priority, User } from '@/types'
 import { createSeedState, emptyBoard, DEFAULT_DEPARTMENTS } from '@/data/seed'
 import { fetchUsers, loadBoard, saveBoard } from '@/lib/api'
-import { backfillTaskCodes, dueStatus, maxTaskCode, nextTaskCode, uid } from '@/lib/utils'
-import { isListDone } from '@/lib/design'
+import { backfillTaskCodes, maxTaskCode, nextTaskCode, uid } from '@/lib/utils'
+import { analyze, getProjectMetrics } from '@/analytics'
 
 /**
  * Store приложения. Хранит несколько досок (AppData); компонентам отдаёт
@@ -588,6 +588,11 @@ export interface BoardSummary {
 
 interface BoardContextValue {
   state: BoardState
+  /**
+   * Полное состояние пространства — нужно слою аналитики: метрики компании,
+   * отделов и загрузки считаются по всем доскам, а не по одной активной.
+   */
+  data: AppData
   actions: BoardActions
   mode: SyncMode
   /** Активные доски пространства (для сайдбара и «Проектов»). */
@@ -792,6 +797,13 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const state = useMemo(() => deriveView(app), [app])
 
   /**
+   * Разбор состояния слоем аналитики. Единственное место, где считаются
+   * «выполнено», «просрочено» и загрузка: экраны читают готовые метрики, а не
+   * повторяют правила у себя.
+   */
+  const index = useMemo(() => analyze(app), [app])
+
+  /**
    * Сводка по доске для сайдбара и раздела «Компания»: сколько задач, сколько
    * из них в работе и сколько просрочено. Считается здесь, потому что только
    * тут доступны списки и карточки всех досок сразу, а не одной активной.
@@ -799,25 +811,17 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const summarize = useCallback(
     (id: string): BoardSummary => {
       const b = app.boards[id]
-      let total = 0
-      let active = 0
-      let overdue = 0
-      for (const lid of b.listIds) {
-        const list = app.lists[lid]
-        if (!list) continue
-        const done = isListDone(list)
-        for (const cid of list.cardIds) {
-          const card = app.cards[cid]
-          if (!card) continue
-          total += 1
-          if (done) continue
-          active += 1
-          if (dueStatus(card.dueDate, false) === 'overdue') overdue += 1
-        }
+      const m = getProjectMetrics(index, id)
+      return {
+        id,
+        name: b.name,
+        memberIds: b.memberIds,
+        total: m?.counts.total ?? 0,
+        active: m?.counts.active ?? 0,
+        overdue: m?.counts.overdue ?? 0,
       }
-      return { id, name: b.name, memberIds: b.memberIds, total, active, overdue }
     },
-    [app.boards, app.lists, app.cards],
+    [app.boards, index],
   )
 
   const boardIdOfCard = useCallback(
@@ -846,6 +850,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       state,
+      data: app,
       actions,
       mode,
       boards,
@@ -861,12 +866,11 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
+      app,
       actions,
       mode,
       boards,
       archivedBoards,
-      app.activeBoardId,
-      app.departments,
       saveNow,
       reloadFromServer,
       overwriteServer,

@@ -20,6 +20,7 @@ import {
   canDeleteBoards,
 } from './boardGuard.js'
 import { limiterKey, retryAfter, registerFailure, registerSuccess } from './rateLimit.js'
+import { aiStatus, allowRequest, datasetTooBig, runAgent as runAiAgent, runExecutive as runAiExecutive } from './ai.js'
 import { allowedDomains, isEmailAllowed, domainsHint } from './emailDomains.js'
 import { mailerEnabled, sendVerificationCode, verifyMailer } from './mailer.js'
 import {
@@ -547,6 +548,51 @@ async function handle(req, res) {
     if (!me || !me.id) return json(res, 401, { error: 'unauthorized' })
     await pool.query('UPDATE users SET tg_chat_id = NULL, tg_code = NULL WHERE id = $1', [me.id])
     return json(res, 200, { ok: true })
+  }
+
+  // ——— AI-слой ———
+  // Ключ провайдера остаётся на сервере: клиент присылает только имя агента и
+  // датасет, собранный слоем аналитики. Подсказку подставляет реестр агентов.
+  if (path.startsWith('/api/ai/')) {
+    const actor = await currentUser(req)
+    if (AUTH_REQUIRED && !actor) return json(res, 401, { error: 'unauthorized' })
+
+    if (path === '/api/ai/status' && req.method === 'GET') {
+      return json(res, 200, aiStatus())
+    }
+
+    const key = actor?.id ?? actor?.login ?? req.socket.remoteAddress ?? 'anonymous'
+    if (!allowRequest(key)) {
+      return json(res, 429, { error: 'Слишком часто. Подождите несколько минут.' })
+    }
+
+    let payload
+    try {
+      payload = JSON.parse(await readBody(req))
+    } catch {
+      return json(res, 400, { error: 'тело запроса не является JSON' })
+    }
+
+    if (path === '/api/ai/agent' && req.method === 'POST') {
+      if (datasetTooBig(payload?.dataset)) {
+        return json(res, 413, { error: 'датасет слишком велик — агенту отправляют выжимку, а не базу' })
+      }
+      try {
+        return json(res, 200, await runAiAgent(payload?.agent, payload?.dataset))
+      } catch (e) {
+        return json(res, e.status ?? 500, { error: e.message })
+      }
+    }
+
+    if (path === '/api/ai/executive' && req.method === 'POST') {
+      try {
+        return json(res, 200, await runAiExecutive(payload?.findings))
+      } catch (e) {
+        return json(res, e.status ?? 500, { error: e.message })
+      }
+    }
+
+    return json(res, 404, { error: 'not_found' })
   }
 
   if (path === '/api/board') {
