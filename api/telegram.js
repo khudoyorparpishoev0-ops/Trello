@@ -149,21 +149,17 @@ async function alreadySent(pool, key) {
 }
 
 // ——— Уведомления о назначении на задачу ———
-// Вызывается при сохранении доски: сравнивает старых и новых исполнителей
-// карточек и шлёт Telegram тем, кого только что добавили (у кого привязан бот).
-// Дедупликация — по разнице состояний: кто уже был в исполнителях, тому не шлём.
-export async function notifyAssignments(pool, oldData, newData, actorId, actorName) {
-  if (!TOKEN || !newData || !newData.cards) return
-  const oldCards = (oldData && oldData.cards) || {}
-  // Собираем всех новоназначенных: cardId → [userId] (исключая уже бывших и автора).
-  const targets = new Map() // userId → Set(cardTitle)
-  for (const c of Object.values(newData.cards)) {
-    const before = new Set(oldCards[c.id]?.assigneeIds ?? [])
-    for (const uid of c.assigneeIds ?? []) {
-      if (before.has(uid) || uid === actorId) continue
-      if (!targets.has(uid)) targets.set(uid, [])
-      targets.get(uid).push(c.title)
-    }
+// Сравнение состояний здесь больше не делается: набор изменений приходит из
+// общего `diffBoardState`, тот же, из которого пишется журнал событий. Пока
+// сравнений было два, «что изменилось» в системе имело два ответа.
+export async function notifyAssignments(pool, changeSet, actorId, actorName) {
+  if (!TOKEN || !changeSet?.assigneeAdded?.length) return
+  // Кому и по каким задачам писать: userId → список названий.
+  const targets = new Map()
+  for (const change of changeSet.assigneeAdded) {
+    if (change.userId === actorId) continue
+    if (!targets.has(change.userId)) targets.set(change.userId, [])
+    targets.get(change.userId).push(change.title)
   }
   if (!targets.size) return
   for (const [uid, titles] of targets) {
@@ -200,26 +196,23 @@ function fmtDue(iso) {
   }
 }
 
-// Вызывается при сохранении доски: у карточек, где сменился срок, уведомляет
-// исполнителей (кроме того, кто менял) — по ТЗ платформы.
-export async function notifyDueChanges(pool, oldData, newData, actorId, actorName) {
-  if (!TOKEN || !newData || !newData.cards) return
-  const oldCards = (oldData && oldData.cards) || {}
-  for (const c of Object.values(newData.cards)) {
-    const before = oldCards[c.id]
-    if (!before) continue // новая карточка — это не «изменение срока»
-    const oldDue = before.dueDate || null
-    const newDue = c.dueDate || null
-    if (oldDue === newDue) continue
-    for (const uid of c.assigneeIds ?? []) {
+// У карточек, где сменился срок, уведомляет исполнителей (кроме того, кто
+// менял). Набор изменений — общий, тот же, что у журнала событий.
+//
+// У только что созданной карточки срок не «менялся»: `diffBoardState` для неё
+// таких изменений не даёт, и уведомление, как и раньше, не уходит.
+export async function notifyDueChanges(pool, changeSet, actorId, actorName) {
+  if (!TOKEN || !changeSet?.dueChanged?.length) return
+  for (const change of changeSet.dueChanged) {
+    for (const uid of change.assigneeIds ?? []) {
       if (uid === actorId) continue
       try {
         const { rows } = await pool.query('SELECT tg_chat_id FROM users WHERE id = $1 AND tg_chat_id IS NOT NULL', [uid])
         if (!rows.length) continue
         const by = actorName ? `\nИзменил(а): ${escapeHtml(actorName)}` : ''
-        const msg = newDue
-          ? `🕒 <b>Срок задачи изменён</b>\n«${escapeHtml(c.title)}» → ${fmtDue(newDue)}${by}`
-          : `🕒 <b>Срок задачи снят</b>\n«${escapeHtml(c.title)}»${by}`
+        const msg = change.to
+          ? `🕒 <b>Срок задачи изменён</b>\n«${escapeHtml(change.title)}» → ${fmtDue(change.to)}${by}`
+          : `🕒 <b>Срок задачи снят</b>\n«${escapeHtml(change.title)}»${by}`
         await send(rows[0].tg_chat_id, msg)
       } catch (e) {
         console.error('[tg] due:', e.message)
