@@ -12,7 +12,7 @@ import type {
   ProjectMetrics,
   Scope,
   TaskCounts,
-} from './types'
+} from './types.js'
 import {
   activeOf,
   departmentOf,
@@ -21,7 +21,7 @@ import {
   priorityOf,
   select,
   workloadPct,
-} from './analyze'
+} from './analyze.js'
 
 /** Базовые счётчики по произвольному набору карточек. */
 export function countTasks(list: CardFacts[]): TaskCounts {

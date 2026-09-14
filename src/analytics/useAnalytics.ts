@@ -1,15 +1,15 @@
 /**
  * Доступ экранов к слою аналитики.
  *
- * Хук намеренно лежит отдельно от бочки `@/analytics`: сам слой не должен
- * зависеть от React и от хранилища, иначе его нельзя будет считать ни в тестах,
- * ни на сервере. Здесь только связка «состояние + сейчас → индекс».
+ * Хук лежит на стороне интерфейса, а не в общем коде: слой аналитики не должен
+ * зависеть ни от React, ни от хранилища — иначе его нельзя было бы считать ни в
+ * тестах, ни на сервере. Здесь только связка «состояние + сейчас → индекс».
  */
 import { useMemo } from 'react'
 import { useBoard } from '@/store/boardStore'
 import { useNow } from '@/store/now'
-import { analyze } from './analyze'
-import type { AnalyticsIndex } from './types'
+import { analyze } from '#shared/analytics'
+import type { AnalyticsIndex } from '#shared/analytics'
 
 /** Индекс аналитики по всему пространству, пересчитывается с тиком «сейчас». */
 export function useAnalytics(): AnalyticsIndex {

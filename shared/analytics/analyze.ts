@@ -6,10 +6,10 @@
  * правила где-либо ещё — в экране, в агенте, в отчёте — нельзя: один
  * показатель, один источник расчёта.
  */
-import { isListDone } from '@/lib/design'
-import { dueStatus } from '@/lib/utils'
-import type { AppData, Card, Priority, User } from '@/types'
-import type { AnalyticsIndex, CardFacts, ListFacts, PriorityCounts, Scope, TaskRef } from './types'
+import { isListDone } from '../domain/design.js'
+import { dueStatus } from '../domain/utils.js'
+import type { AppData, Card, Priority, User } from '../domain/types.js'
+import type { AnalyticsIndex, CardFacts, ListFacts, PriorityCounts, Scope, TaskRef } from './types.js'
 
 const HOUR = 60 * 60 * 1000
 

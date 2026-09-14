@@ -1,38 +1,12 @@
 /**
  * Слой аналитики CORE — единственный источник цифр (архитектура AI, слой 2).
  *
- * Правило системы: CORE хранит факты, аналитика считает, агенты
- * интерпретируют. Любой показатель — количество задач, проценты, загрузка,
- * просрочки, WIP — рассчитывается здесь и только здесь. Экраны и агенты
- * читают готовое; второй копии расчёта не существует.
+ * Сам слой живёт в общем коде (`shared/analytics`): те же функции считают
+ * метрики и на сервере. Здесь только переэкспорт, чтобы импорты `@/analytics`
+ * в компонентах остались прежними.
  *
- * Слой не зависит от AI: он работает при отключённом провайдере, без ключа и
- * при недоступном сервисе. Дашборд, «Команда» и «Отчёты» построены на нём.
+ * React-хук `useAnalytics` сюда намеренно не попадает: хранилище импортирует
+ * этот файл, а хук импортирует хранилище — вышел бы цикл, и в тестах на Node
+ * подтянулся бы React.
  */
-export * from './types'
-export { analyze, WORKLOAD_NORM, workloadPct, pct, select, activeOf } from './analyze'
-export {
-  countTasks,
-  countByPriority,
-  getTaskMetrics,
-  getCompanyMetrics,
-  getProjectMetrics,
-  getEmployeeMetrics,
-  getDepartmentMetrics,
-  getProjectCompletion,
-  activeIn,
-} from './metrics'
-export {
-  getOverdueTasks,
-  getUpcomingDeadlines,
-  getDeadlineBuckets,
-  getUnassignedTasks,
-  getTasksWithoutDueDate,
-  getCriticalTasks,
-  getWipViolations,
-  getDataQualityIssues,
-  getDeadlineQueue,
-  getRecentActivity,
-} from './queries'
-export { getWorkloadByEmployee, getWorkloadByDepartment } from './workload'
-export { getProjectHealthSignals } from './health'
+export * from '#shared/analytics'

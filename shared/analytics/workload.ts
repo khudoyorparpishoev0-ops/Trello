@@ -7,8 +7,8 @@ import type {
   DepartmentWorkloadRow,
   Scope,
   WorkloadRow,
-} from './types'
-import { departmentOf, pct, select, workloadPct } from './analyze'
+} from './types.js'
+import { departmentOf, pct, select, workloadPct } from './analyze.js'
 
 /**
  * Загрузка по сотрудникам, самые нагруженные первыми.

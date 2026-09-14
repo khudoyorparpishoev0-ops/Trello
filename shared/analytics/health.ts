@@ -5,10 +5,10 @@
  * этом файле нет и быть не должно: пороги и оценка — работа агента, иначе
  * суждение окажется зашитым в код и его нельзя будет ни объяснить, ни изменить.
  */
-import type { AnalyticsIndex, ProjectHealthSignals } from './types'
-import { pct } from './analyze'
-import { getProjectMetrics } from './metrics'
-import { getWipViolations } from './queries'
+import type { AnalyticsIndex, ProjectHealthSignals } from './types.js'
+import { pct } from './analyze.js'
+import { getProjectMetrics } from './metrics.js'
+import { getWipViolations } from './queries.js'
 
 const DAY = 24 * 60 * 60 * 1000
 

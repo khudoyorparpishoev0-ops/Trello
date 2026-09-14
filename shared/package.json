@@ -1,0 +1,13 @@
+{
+  "name": "@ithona/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Общий код фронтенда и API: модель данных, правила предметной области и слой аналитики. Фронтенд импортирует исходники, API — результат компиляции.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

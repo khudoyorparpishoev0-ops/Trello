@@ -20,6 +20,8 @@ import {
   canDeleteBoards,
 } from './boardGuard.js'
 import { limiterKey, retryAfter, registerFailure, registerSuccess } from './rateLimit.js'
+// Общий код: скомпилированный TypeScript из shared/ (см. api/Dockerfile).
+import { DEFAULT_WORKSPACE_ID } from './shared/domain/workspace.js'
 import { aiStatus, allowRequest, datasetTooBig, runAgent as runAiAgent, runExecutive as runAiExecutive } from './ai.js'
 import { allowedDomains, isEmailAllowed, domainsHint } from './emailDomains.js'
 import { mailerEnabled, sendVerificationCode, verifyMailer } from './mailer.js'
@@ -43,6 +45,9 @@ const AUTH_PASSWORD = process.env.AUTH_PASSWORD ?? ''
 const SHARED = !ACCOUNTS && AUTH_PASSWORD.length > 0
 const AUTH_REQUIRED = ACCOUNTS || SHARED
 const SESSION_DAYS = 30
+// Пространство пока одно. Строка не размазывается по запросам: когда появится
+// второе, менять придётся объявление в общем коде, а не десяток SQL.
+const WORKSPACE_ID = DEFAULT_WORKSPACE_ID
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const pool = new pg.Pool({
@@ -599,7 +604,10 @@ async function handle(req, res) {
     const actor = await currentUser(req)
     if (AUTH_REQUIRED && !actor) return json(res, 401, { error: 'unauthorized' })
     if (req.method === 'GET') {
-      const { rows } = await pool.query("SELECT data, version FROM board_state WHERE id = 'default'")
+      const { rows } = await pool.query(
+        'SELECT data, version FROM board_state WHERE id = $1',
+        [WORKSPACE_ID],
+      )
       // Версия уходит заголовком, а не в теле: тело — само состояние доски,
       // и оборачивать его в конверт значило бы сломать уже работающие клиенты.
       const headers = rows[0] ? { 'X-Board-Version': String(rows[0].version) } : undefined
@@ -618,7 +626,9 @@ async function handle(req, res) {
       if (!check.ok) return json(res, 422, { error: check.error, detail: check.detail })
 
       // Прежнее состояние — для уведомлений, снимка истории и сверки версии.
-      const prev = await pool.query("SELECT data, version FROM board_state WHERE id = 'default'")
+      const prev = await pool.query('SELECT data, version FROM board_state WHERE id = $1', [
+        WORKSPACE_ID,
+      ])
       const prevData = prev.rows[0]?.data
       const prevVersion = prev.rows[0]?.version ?? null
       const clientVersion = parseVersion(req.headers['x-board-version'])
@@ -644,17 +654,24 @@ async function handle(req, res) {
       // Снимок предыдущего состояния (разреженно; при заметной потере карточек — всегда).
       try {
         const last = await pool.query(
-          "SELECT created_at FROM board_history WHERE board_id = 'default' ORDER BY created_at DESC LIMIT 1",
+          'SELECT created_at FROM board_history WHERE board_id = $1 ORDER BY created_at DESC LIMIT 1',
+          [WORKSPACE_ID],
         )
         if (shouldSnapshot(prevData, newData, last.rows[0]?.created_at)) {
           await pool.query(
-            `INSERT INTO board_history (board_id, data, cards, actor) VALUES ('default', $1::jsonb, $2, $3)`,
-            [JSON.stringify(prevData), Object.keys(prevData?.cards ?? {}).length, actor?.name ?? null],
+            `INSERT INTO board_history (board_id, data, cards, actor) VALUES ($4, $1::jsonb, $2, $3)`,
+            [
+              JSON.stringify(prevData),
+              Object.keys(prevData?.cards ?? {}).length,
+              actor?.name ?? null,
+              WORKSPACE_ID,
+            ],
           )
           // Держим последние 50 снимков.
           await pool.query(
-            `DELETE FROM board_history WHERE board_id = 'default' AND id NOT IN (
-               SELECT id FROM board_history WHERE board_id = 'default' ORDER BY created_at DESC LIMIT 50)`,
+            `DELETE FROM board_history WHERE board_id = $1 AND id NOT IN (
+               SELECT id FROM board_history WHERE board_id = $1 ORDER BY created_at DESC LIMIT 50)`,
+            [WORKSPACE_ID],
           )
         }
       } catch (e) {
@@ -665,11 +682,11 @@ async function handle(req, res) {
       if (prevVersion === null) {
         // Первая запись (или строка от прежней схемы) — сверять не с чем.
         const ins = await pool.query(
-          `INSERT INTO board_state (id, data, version) VALUES ('default', $1::jsonb, 1)
+          `INSERT INTO board_state (id, data, version) VALUES ($2, $1::jsonb, 1)
            ON CONFLICT (id) DO UPDATE SET data = $1::jsonb, version = board_state.version + 1,
              updated_at = now()
            RETURNING version`,
-          [body],
+          [body, WORKSPACE_ID],
         )
         nextVersion = Number(ins.rows[0].version)
       } else {
@@ -678,11 +695,13 @@ async function handle(req, res) {
         // поймала бы. Ноль обновлённых строк — тот же конфликт.
         const upd = await pool.query(
           `UPDATE board_state SET data = $1::jsonb, version = version + 1, updated_at = now()
-           WHERE id = 'default' AND version = $2 RETURNING version`,
-          [body, prevVersion],
+           WHERE id = $3 AND version = $2 RETURNING version`,
+          [body, prevVersion, WORKSPACE_ID],
         )
         if (!upd.rowCount) {
-          const cur = await pool.query("SELECT version FROM board_state WHERE id = 'default'")
+          const cur = await pool.query('SELECT version FROM board_state WHERE id = $1', [
+            WORKSPACE_ID,
+          ])
           return json(res, 409, { error: 'version_conflict', version: Number(cur.rows[0]?.version ?? 0) })
         }
         nextVersion = Number(upd.rows[0].version)

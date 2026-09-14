@@ -5,6 +5,9 @@
 // - Напоминания: раз в день (в REMINDER_HOUR по UTC) — дни рождения за 2 дня
 //   и дайджест ближайших дедлайнов, всем привязанным пользователям.
 
+// Общий код: скомпилированный TypeScript из shared/ (см. api/Dockerfile).
+import { DEFAULT_WORKSPACE_ID } from './shared/domain/workspace.js'
+
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? ''
 const REMINDER_HOUR = Number(process.env.TELEGRAM_REMINDER_HOUR ?? 6) // UTC
 const API = `https://api.telegram.org/bot${TOKEN}`
@@ -127,7 +130,9 @@ async function runReminders(pool) {
   // Дайджест дедлайнов на сегодня/завтра
   const key = `deadlines:${now.toISOString().slice(0, 10)}`
   if (!(await alreadySent(pool, key))) {
-    const board = await pool.query("SELECT data FROM board_state WHERE id = 'default'")
+    const board = await pool.query('SELECT data FROM board_state WHERE id = $1', [
+      DEFAULT_WORKSPACE_ID,
+    ])
     const due = collectUpcoming(board.rows[0]?.data)
     if (due.length) {
       const lines = due.slice(0, 15).map((d) => `• ${escapeHtml(d.title)} — ${d.when}`).join('\n')
