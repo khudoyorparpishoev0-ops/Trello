@@ -1,15 +1,21 @@
 /** Хук резолвинга: «@/…» → «src/…» и подстановка расширений .ts/.tsx/.js. */
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const SRC = new URL('../src/', import.meta.url).href
 const EXT = ['.ts', '.tsx', '.js', '.mjs', '/index.ts', '/index.tsx']
 
+/** Файл ли это (папка не годится: Node не умеет импортировать каталог). */
+function isFile(href) {
+  const path = fileURLToPath(href)
+  return existsSync(path) && statSync(path).isFile()
+}
+
 function firstExisting(href) {
-  if (existsSync(fileURLToPath(href))) return href
+  if (isFile(href)) return href
   for (const e of EXT) {
     const candidate = href + e
-    if (existsSync(fileURLToPath(candidate))) return candidate
+    if (isFile(candidate)) return candidate
   }
   return null
 }

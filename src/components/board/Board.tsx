@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -20,6 +20,8 @@ import { useBoard } from '@/store/boardStore'
 import { isListDone, listAccentColor } from '@/lib/design'
 import { cardMatchesFilters } from '@/lib/filterCards'
 import { boardBgStyle } from '@/lib/backgrounds'
+import { useIsPhone } from '@/lib/useIsPhone'
+import { cn } from '@/lib/utils'
 import type { Card } from '@/types'
 
 export interface Filters {
@@ -37,6 +39,15 @@ export function Board({ filters, onOpenCard }: BoardProps) {
   const { state, actions } = useBoard()
   const { board, lists, cards, users, labels } = state
   const [activeId, setActiveId] = useState<string | null>(null)
+  const phone = useIsPhone()
+  // На телефоне показывается один список; выбор живёт здесь, а не в колонке.
+  const [openListId, setOpenListId] = useState<string | null>(null)
+  const activeListIdPhone = openListId && lists[openListId] ? openListId : board.listIds[0]
+
+  // Доска сменилась — вернуться к её первому списку.
+  useEffect(() => {
+    setOpenListId(null)
+  }, [board.id])
 
   // Мышь — тянем сразу (порог 6px, чтобы клик открывал карточку).
   // Тач — тянем после долгого нажатия (250ms), чтобы обычный свайп прокручивал колонку.
@@ -107,42 +118,113 @@ export function Board({ filters, onOpenCard }: BoardProps) {
       onDragCancel={() => setActiveId(null)}
     >
       <div className="relative h-full" style={boardBgStyle(board.background)}>
-      <div className="flex h-full items-start gap-3 overflow-x-auto px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
-        {board.listIds.map((listId) => {
-          const list = lists[listId]
-          if (!list) return null
-          const visible = list.cardIds
-            .map((id) => cards[id])
-            .filter((c): c is Card => Boolean(c) && cardMatchesFilters(c, list, state, filters))
-          return (
-            <Column
-              key={list.id}
-              list={list}
-              cards={visible}
-              users={users}
-              labels={labels}
-              onAddCardTop={(title) => actions.addCard(list.id, title, true)}
-              onRename={(title) => actions.renameList(list.id, title)}
-              onDelete={() => actions.deleteList(list.id)}
-              onOpenCard={onOpenCard}
-            />
-          )
-        })}
+        {phone ? (
+          /*
+            Телефон: вместо горизонтального скролла колонок — ряд чипов со
+            списками и одна колонка во всю ширину. Горизонтальный скролл на
+            узком экране прятал соседние списки и мешал вертикальному.
+          */
+          <div className="flex h-full flex-col">
+            <div className="flex shrink-0 gap-2 overflow-x-auto px-4 py-3 no-scrollbar">
+              {board.listIds.map((listId) => {
+                const list = lists[listId]
+                if (!list) return null
+                const active = listId === activeListIdPhone
+                const count = list.cardIds.filter((id) => {
+                  const c = cards[id]
+                  return Boolean(c) && cardMatchesFilters(c, list, state, filters)
+                }).length
+                return (
+                  <button
+                    key={listId}
+                    type="button"
+                    onClick={() => setOpenListId(listId)}
+                    className={cn(
+                      'flex min-h-[44px] shrink-0 items-center gap-2 rounded-chip px-3 text-body transition-colors',
+                      active
+                        ? 'bg-brand-fill font-semibold text-white'
+                        : 'border border-line bg-surface text-muted',
+                    )}
+                  >
+                    {list.title}
+                    <span className={cn('mono-data', active ? 'text-white' : 'text-faint')}>{count}</span>
+                  </button>
+                )
+              })}
+            </div>
 
-        {/* Добавить список */}
-        <div className="w-[86vw] max-w-[320px] shrink-0 sm:w-[300px]">
-          <InlineComposer
-            triggerLabel="Добавить список"
-            placeholder="Название списка…"
-            submitLabel="Добавить список"
-            onSubmit={(title) => actions.addList(title)}
-            variant="dashed"
-          />
-        </div>
-      </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+              {board.listIds.map((listId) => {
+                const list = lists[listId]
+                if (!list || listId !== activeListIdPhone) return null
+                const visible = list.cardIds
+                  .map((id) => cards[id])
+                  .filter((c): c is Card => Boolean(c) && cardMatchesFilters(c, list, state, filters))
+                return (
+                  <Column
+                    key={list.id}
+                    list={list}
+                    cards={visible}
+                    users={users}
+                    labels={labels}
+                    fullWidth
+                    onAddCardTop={(title) => actions.addCard(list.id, title, true)}
+                    onRename={(title) => actions.renameList(list.id, title)}
+                    onDelete={() => actions.deleteList(list.id)}
+                    onOpenCard={onOpenCard}
+                  />
+                )
+              })}
+
+              <div className="mt-4">
+                <InlineComposer
+                  triggerLabel="Добавить список"
+                  placeholder="Название списка…"
+                  submitLabel="Добавить список"
+                  onSubmit={(title) => actions.addList(title)}
+                  variant="dashed"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-full items-start gap-6 overflow-x-auto px-4 py-6 sm:gap-8 sm:px-8">
+            {board.listIds.map((listId) => {
+              const list = lists[listId]
+              if (!list) return null
+              const visible = list.cardIds
+                .map((id) => cards[id])
+                .filter((c): c is Card => Boolean(c) && cardMatchesFilters(c, list, state, filters))
+              return (
+                <Column
+                  key={list.id}
+                  list={list}
+                  cards={visible}
+                  users={users}
+                  labels={labels}
+                  onAddCardTop={(title) => actions.addCard(list.id, title, true)}
+                  onRename={(title) => actions.renameList(list.id, title)}
+                  onDelete={() => actions.deleteList(list.id)}
+                  onOpenCard={onOpenCard}
+                />
+              )
+            })}
+
+            {/* Добавить список */}
+            <div className="w-[86vw] max-w-[320px] shrink-0 sm:w-[300px]">
+              <InlineComposer
+                triggerLabel="Добавить список"
+                placeholder="Название списка…"
+                submitLabel="Добавить список"
+                onSubmit={(title) => actions.addList(title)}
+                variant="dashed"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.4,0,0.2,1)' }}>
+      <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0,0,0.2,1)' }}>
         {activeCard && activeList ? (
           <KanbanCardView
             card={activeCard}

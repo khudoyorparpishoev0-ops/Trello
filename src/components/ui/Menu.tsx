@@ -45,7 +45,7 @@ export function Menu({ trigger, items, align = 'right' }: MenuProps) {
       {open && (
         <div
           className={cn(
-            'absolute z-40 mt-1 min-w-[180px] overflow-hidden rounded-btn border border-line bg-elevated py-1 shadow-md animate-scale-in',
+            'absolute z-40 mt-1 min-w-[200px] overflow-hidden rounded-card border border-line bg-elevated py-1 shadow-md animate-scale-in',
             align === 'right' ? 'right-0' : 'left-0',
           )}
         >
@@ -58,13 +58,11 @@ export function Menu({ trigger, items, align = 'right' }: MenuProps) {
                 setOpen(false)
               }}
               className={cn(
-                'flex w-full items-center gap-2 px-3 py-2 text-small transition-colors duration-200 ease-smooth',
-                item.danger
-                  ? 'text-error hover:bg-error-soft'
-                  : 'text-fg hover:bg-hover',
+                'flex w-full items-center gap-2.5 px-3 py-2.5 text-small transition-colors ease-smooth',
+                item.danger ? 'text-err-ink hover:bg-err-bg' : 'text-fg hover:bg-hover',
               )}
             >
-              {item.icon && <item.icon size={15} strokeWidth={2} />}
+              {item.icon && <item.icon size={16} strokeWidth={1.6} />}
               {item.label}
             </button>
           ))}

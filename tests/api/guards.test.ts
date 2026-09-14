@@ -4,7 +4,15 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { validateBoardPayload, cardCount, shouldSnapshot } from '../../api/boardGuard.js'
+import {
+  validateBoardPayload,
+  cardCount,
+  shouldSnapshot,
+  parseVersion,
+  versionConflict,
+  removedBoards,
+  canDeleteBoards,
+} from '../../api/boardGuard.js'
 import {
   limiterKey,
   registerFailure,
@@ -155,4 +163,90 @@ test('блокировка снимается по истечении срока
   for (let i = 0; i < LIMITS.MAX_FAILS; i++) registerFailure(key, t0)
   assert.ok(retryAfter(key, t0) > 0)
   assert.equal(retryAfter(key, t0 + LIMITS.BLOCK_MS + 1000), 0)
+})
+
+// ——— Версия доски: защита от затирания чужих правок ———
+
+test('версия разбирается из заголовка только как целое число', () => {
+  assert.equal(parseVersion('7'), 7)
+  assert.equal(parseVersion(' 12 '), 12)
+  assert.equal(parseVersion('0'), 0)
+})
+
+test('отсутствие или мусор в заголовке версии дают null, а не ноль', () => {
+  // Ноль — валидная версия, поэтому «нет заголовка» обязано отличаться от неё.
+  assert.equal(parseVersion(undefined), null)
+  assert.equal(parseVersion(null), null)
+  assert.equal(parseVersion(''), null)
+  assert.equal(parseVersion('   '), null)
+  assert.equal(parseVersion('abc'), null)
+  assert.equal(parseVersion('3.5'), null)
+  assert.equal(parseVersion('-1'), null)
+})
+
+test('расхождение версий — конфликт', () => {
+  assert.equal(versionConflict(1, 2), true)
+  assert.equal(versionConflict(5, 4), true)
+})
+
+test('совпадение версий — записываем', () => {
+  assert.equal(versionConflict(2, 2), false)
+  assert.equal(versionConflict(0, 0), false)
+  // pg отдаёт bigint строкой — сравнение обязано это переживать.
+  assert.equal(versionConflict(3, '3'), false)
+  assert.equal(versionConflict(3, '4'), true)
+})
+
+test('клиент без версии пишет как раньше (фронтенд из кеша браузера)', () => {
+  assert.equal(versionConflict(null, 7), false)
+  assert.equal(versionConflict(undefined, 7), false)
+})
+
+test('на сервере версии ещё нет — сверять не с чем', () => {
+  assert.equal(versionConflict(1, null), false)
+  assert.equal(versionConflict(1, undefined), false)
+})
+
+// ——— Удаление проектов: только администратор (R-02) ———
+
+const withBoards = (ids: string[]) => ({
+  boards: Object.fromEntries(ids.map((id) => [id, { id, name: `Проект ${id}`, archived: false }])),
+  lists: {},
+  cards: {},
+})
+
+test('исчезнувшая доска распознаётся как удалённая', () => {
+  assert.deepEqual(removedBoards(withBoards(['a', 'b']), withBoards(['a'])), ['Проект b'])
+})
+
+test('без удалений список пуст', () => {
+  assert.deepEqual(removedBoards(withBoards(['a', 'b']), withBoards(['a', 'b'])), [])
+  assert.deepEqual(removedBoards(withBoards(['a']), withBoards(['a', 'b'])), [])
+})
+
+test('архивация — не удаление: доска остаётся в состоянии', () => {
+  const prev = withBoards(['a'])
+  const next = { ...withBoards(['a']) }
+  next.boards.a = { ...next.boards.a, archived: true }
+  assert.deepEqual(removedBoards(prev, next), [])
+})
+
+test('прежнего состояния нет — удалять было нечего', () => {
+  assert.deepEqual(removedBoards(null, withBoards(['a'])), [])
+  assert.deepEqual(removedBoards(undefined, withBoards(['a'])), [])
+})
+
+test('удалять проекты может администратор', () => {
+  assert.equal(canDeleteBoards({ role: 'admin' }), true)
+})
+
+test('участник и наблюдатель — не могут', () => {
+  assert.equal(canDeleteBoards({ role: 'member' }), false)
+  assert.equal(canDeleteBoards({ role: 'observer' }), false)
+  assert.equal(canDeleteBoards({}), false)
+})
+
+test('режим открытого доступа: актора нет, ролей нет — поведение прежнее', () => {
+  assert.equal(canDeleteBoards(null), true)
+  assert.equal(canDeleteBoards(undefined), true)
 })

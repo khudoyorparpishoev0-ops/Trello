@@ -245,31 +245,89 @@ export async function telegramUnlink(): Promise<boolean> {
 }
 
 /**
+ * Состояние доски вместе с её номером версии. Версия приходит заголовком
+ * `X-Board-Version` и нужна, чтобы сохранение не затирало чужие правки.
+ */
+export interface BoardSnapshot {
+  data: AppData | BoardState
+  /** null — сервер прежней версии, без версионирования. */
+  version: number | null
+}
+
+function readVersion(res: Response): number | null {
+  const raw = res.headers.get('X-Board-Version')
+  if (!raw) return null
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
  * Загрузить состояние с сервера (новый формат AppData или старый BoardState —
  * миграцию делает store). null — если данных нет или бэкенд недоступен.
  */
-export async function loadBoard(): Promise<AppData | BoardState | null> {
+export async function loadBoard(): Promise<BoardSnapshot | null> {
   try {
     const res = await fetch(`${BASE}/board`, { headers: { Accept: 'application/json' } })
     if (!res.ok) return null
     const data = await res.json()
-    if (data && data.lists && data.cards && (data.boards || data.board)) return data
+    if (data && data.lists && data.cards && (data.boards || data.board)) {
+      return { data, version: readVersion(res) }
+    }
     return null
   } catch {
     return null
   }
 }
 
-/** Сохранить состояние на сервер. true — успех. */
-export async function saveBoard(state: AppData): Promise<boolean> {
+/**
+ * Результат сохранения.
+ * `conflict` — доску успел изменить кто-то другой;
+ * `forbidden` — сервер отклонил изменение по правам (удаление проекта).
+ */
+export type SaveResult =
+  | { ok: true; version: number | null }
+  | { ok: false; kind: 'conflict'; version: number | null }
+  | { ok: false; kind: 'forbidden'; message: string }
+  | { ok: false; kind: 'error' }
+
+/**
+ * Сохранить состояние на сервер.
+ *
+ * Версия уходит заголовком: сервер сверяет её со своей и отвечает 409, если
+ * доску успели изменить. Без версии (её ещё нет — первая запись) сохранение
+ * идёт как раньше, безусловной перезаписью.
+ */
+export async function saveBoard(state: AppData, version: number | null = null): Promise<SaveResult> {
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (version !== null) headers['X-Board-Version'] = String(version)
     const res = await fetch(`${BASE}/board`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(state),
     })
-    return res.ok
+    if (res.status === 409) {
+      const body = await res.json().catch(() => null)
+      const v = typeof body?.version === 'number' ? body.version : readVersion(res)
+      return { ok: false, kind: 'conflict', version: v }
+    }
+    if (res.status === 403) {
+      const body = await res.json().catch(() => null)
+      const names = Array.isArray(body?.boards) ? body.boards.filter((n: unknown) => typeof n === 'string') : []
+      const detail = typeof body?.detail === 'string' ? body.detail : 'изменение отклонено'
+      return {
+        ok: false,
+        kind: 'forbidden',
+        message: names.length
+          ? `Удалять проекты может только администратор. «${names.join('», «')}» восстановлен${names.length > 1 ? 'ы' : ''}.`
+          : `Изменение отклонено: ${detail}.`,
+      }
+    }
+    if (!res.ok) return { ok: false, kind: 'error' }
+    const body = await res.json().catch(() => null)
+    const v = typeof body?.version === 'number' ? body.version : readVersion(res)
+    return { ok: true, version: v }
   } catch {
-    return false
+    return { ok: false, kind: 'error' }
   }
 }

@@ -56,23 +56,23 @@ export function InlineComposer({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          'flex w-full items-center gap-2 rounded-btn px-3 py-2 text-small font-medium',
-          'transition-colors duration-200 ease-smooth',
+          'flex h-11 w-full items-center gap-2 rounded-btn px-3 text-left text-body',
+          'transition-colors ease-smooth',
           variant === 'dashed'
             ? 'border border-dashed border-line-strong text-muted hover:border-muted hover:text-fg'
             : accent
-              ? 'text-brand hover:bg-brand-soft'
+              ? 'border border-dashed border-line-strong text-muted hover:border-brand hover:text-brand-ink'
               : 'text-muted hover:bg-hover hover:text-fg',
         )}
       >
-        <Plus size={16} strokeWidth={2} />
+        <Plus size={18} strokeWidth={1.6} />
         {triggerLabel}
       </button>
     )
   }
 
   return (
-    <div className="rounded-btn bg-surface p-2 shadow-card animate-scale-in">
+    <div className="rounded-card bg-surface p-2 shadow-card animate-scale-in">
       <textarea
         ref={inputRef}
         value={value}
@@ -88,8 +88,8 @@ export function InlineComposer({
         placeholder={placeholder}
         rows={2}
         className={cn(
-          'w-full resize-none rounded-input bg-bg px-3 py-2 text-small text-fg',
-          'border border-line focus:border-brand focus:outline-none placeholder:text-faint',
+          'w-full resize-none rounded-input bg-mist px-3 py-2 text-body text-fg',
+          'border border-line-strong focus:border-brand focus:outline-none placeholder:text-faint',
         )}
       />
       <div className="mt-2 flex items-center gap-2">

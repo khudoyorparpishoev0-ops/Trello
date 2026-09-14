@@ -2,30 +2,36 @@ import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+type Tone = 'muted' | 'ok' | 'warn' | 'err' | 'info' | 'brand'
+
 interface CountBadgeProps {
   icon: LucideIcon
   count: number
   label: string
-  /** Подсветить (например, просроченный дедлайн). */
-  tone?: 'muted' | 'error' | 'warning' | 'success'
+  tone?: Tone
   className?: string
 }
 
-const TONES = {
+const INK: Record<Tone, string> = {
   muted: 'text-muted',
-  error: 'text-error',
-  warning: 'text-warning',
-  success: 'text-success',
+  ok: 'text-ok-ink',
+  warn: 'text-warn-ink',
+  err: 'text-err-ink',
+  info: 'text-info-ink',
+  brand: 'text-brand-ink',
 }
 
-/** Иконка + счётчик (комментарии, вложения, дедлайн) на карточке. */
+/**
+ * Иконка + счётчик (комментарии, вложения, чек-лист) в нижнем ряду карточки.
+ * Служебный слой — моно, поэтому цифры не пляшут при обновлении.
+ */
 export function CountBadge({ icon: Icon, count, label, tone = 'muted', className }: CountBadgeProps) {
   return (
     <span
-      className={cn('inline-flex items-center gap-1 text-caption tabular-nums', TONES[tone], className)}
+      className={cn('mono-data inline-flex items-center gap-1', INK[tone], className)}
       title={`${label}: ${count}`}
     >
-      <Icon size={14} strokeWidth={2} />
+      <Icon size={14} strokeWidth={1.6} />
       {count}
     </span>
   )
@@ -38,22 +44,19 @@ interface LabelChipProps {
   compact?: boolean
 }
 
-/** Метка-тег карточки (Brand Book §6 Badge, ТЗ §5.3 Метки). */
+/**
+ * Метка карточки — плашка с белым моно-текстом на тёмной заливке (радиус 2).
+ * Заливки палитры меток специально тёмные: белый текст 11px на светло-зелёном
+ * брендбук запрещает.
+ */
 export function LabelChip({ name, color, compact }: LabelChipProps) {
   if (compact) {
-    return (
-      <span
-        className="h-1.5 w-8 rounded-pill"
-        style={{ background: color }}
-        title={name}
-        aria-label={name}
-      />
-    )
+    return <span className="h-1.5 w-8" style={{ background: color }} title={name} aria-label={name} />
   }
   return (
     <span
-      className="inline-flex items-center rounded-badge px-2 py-0.5 text-[11px] font-medium leading-4"
-      style={{ background: `${color}24`, color }}
+      className="mono-label inline-flex items-center rounded-chip px-1.5 py-0.5 text-white"
+      style={{ background: color }}
     >
       {name}
     </span>
@@ -62,32 +65,43 @@ export function LabelChip({ name, color, compact }: LabelChipProps) {
 
 interface PillProps {
   children: ReactNode
-  tone?: 'muted' | 'brand' | 'error' | 'warning' | 'info' | 'success'
+  tone?: Tone
   icon?: LucideIcon
+  /** Линия 2px слева — для акцентных статусов (брендбук §04). */
+  rule?: boolean
   className?: string
 }
 
-const PILL_TONES = {
-  muted: 'bg-hover text-muted',
-  brand: 'bg-brand-soft text-brand',
-  error: 'bg-error-soft text-error',
-  warning: 'bg-warning-soft text-warning',
-  info: 'bg-info-soft text-info',
-  success: 'bg-success-soft text-success',
+const PILL_TONES: Record<Tone, string> = {
+  muted: 'bg-mist text-muted border-l-line-strong',
+  ok: 'bg-ok-bg text-ok-ink border-l-ok',
+  warn: 'bg-warn-bg text-warn-ink border-l-warn',
+  err: 'bg-err-bg text-err-ink border-l-err',
+  info: 'bg-info-bg text-info-ink border-l-info',
+  brand: 'bg-brand-bg text-brand-ink border-l-brand',
 }
 
-/** Небольшой статусный «пилюль»-бейдж. */
-export function Pill({ children, tone = 'muted', icon: Icon, className }: PillProps) {
+/**
+ * Статусная плашка. Насыщенный тон уходит в левую линию, текст — ink-тоном
+ * того же статуса; скруглений нет (брендбук: «таблеток» в системе нет).
+ */
+export function Pill({ children, tone = 'muted', icon: Icon, rule, className }: PillProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-caption font-medium',
+        'mono-label inline-flex items-center gap-1.5 px-2 py-1',
+        rule && 'border-l-2',
         PILL_TONES[tone],
         className,
       )}
     >
-      {Icon && <Icon size={12} strokeWidth={2} />}
+      {Icon && <Icon size={13} strokeWidth={1.6} />}
       {children}
     </span>
   )
+}
+
+/** Точка-индикатор 8px. Единственное место, где насыщенный тон стоит сплошняком. */
+export function Dot({ color, className }: { color: string; className?: string }) {
+  return <span className={cn('inline-block h-2 w-2 shrink-0', className)} style={{ background: color }} aria-hidden />
 }

@@ -92,10 +92,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
 function Splash() {
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-bg">
-      <div className="flex items-center gap-3 text-muted">
-        <CoreTile tile={36} mark={22} radius={10} />
-        <span className="animate-pulse text-small">Загрузка…</span>
+    <div className="flex h-screen w-full items-center justify-center bg-page">
+      <div className="flex items-center gap-4">
+        <CoreTile size={40} />
+        <span className="mono-label animate-pulse text-muted">Загрузка</span>
       </div>
     </div>
   )

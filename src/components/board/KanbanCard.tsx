@@ -1,7 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { MessageSquare, Paperclip, CheckSquare, Calendar, Clock, Plus, Repeat, Timer, BarChart3, Bell } from 'lucide-react'
-import type { CSSProperties } from 'react'
+import { MessageSquare, Paperclip, ListChecks, Clock, Plus, RefreshCw, Timer, BarChart3, Bell } from 'lucide-react'
 import type { Card, Label, User } from '@/types'
 import { AvatarStack } from '@/components/ui/Avatar'
 import { CountBadge, LabelChip } from '@/components/ui/Badge'
@@ -10,13 +9,13 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import { labelColor } from '@/lib/design'
 import { useNow } from '@/store/now'
 import { useStickerMenu } from './StickerMenu'
-import { checklistProgress, cn, deadlineCountdown, dueStatus, formatDate, taskCode } from '@/lib/utils'
+import { checklistProgress, cn, deadlineTimer, dueStatus, formatDate, taskCode } from '@/lib/utils'
 
 interface KanbanCardViewProps {
   card: Card
   users: Record<string, User>
   labels: Record<string, Label>
-  /** Цвет полосы/стадии (передаётся колонкой); если у карточки есть метки — берётся цвет первой. */
+  /** Цвет стадии (передаётся колонкой); если у карточки есть метки — берётся цвет первой. */
   accent: string
   /** Карточка в списке «Готово» — дедлайн не подсвечивается как просроченный. */
   isDone?: boolean
@@ -26,9 +25,15 @@ interface KanbanCardViewProps {
 }
 
 /**
- * Канбан-карточка (ТЗ «Карточка задачи»).
- * Шапка: код · таймер до дедлайна · приоритет. Ниже: метки, название,
- * прогресс, нижний ряд (дедлайн-блок, чек-лист, комментарии, вложения, аватары).
+ * Канбан-карточка.
+ *
+ * Шапка: код · таймер до дедлайна · приоритет. Ниже — метки, название,
+ * прогресс и нижний ряд со сроком, счётчиками, стикерами и исполнителями.
+ *
+ * Два правила, которые нельзя ломать:
+ *  — цвет таймера и блока срока задаётся СРОКОМ, а не приоритетом;
+ *  — нижний ряд виден всегда: в нём живут кнопки «+», а на тач-устройствах
+ *    hover'а нет и спрятанное в него управление становится недоступным.
  */
 export function KanbanCardView({ card, users, labels, accent, isDone, dragging, overlay, onOpen }: KanbanCardViewProps) {
   const now = useNow()
@@ -38,21 +43,11 @@ export function KanbanCardView({ card, users, labels, accent, isDone, dragging, 
   const complete = total > 0 && done === total
   const assignees = card.assigneeIds.map((id) => users[id]).filter(Boolean)
   const cardLabels = card.labelIds.map((id) => labels[id]).filter(Boolean)
-  const stripColor = cardLabels[0] ? labelColor(cardLabels[0].color) : accent || 'rgba(140,140,150,.5)'
+  const stripColor = cardLabels[0] ? labelColor(cardLabels[0].color) : accent
 
-  // Цвет таймера и блока дедлайна определяется СРОКОМ, а не приоритетом (ТЗ §4.4).
   const status = dueStatus(card.dueDate, isDone ?? false, new Date(now))
-  const dueColor = status === 'overdue' ? '#EF4444' : status === 'soon' ? '#F59E0B' : null
-  const timerStyle: CSSProperties = dueColor
-    ? { color: dueColor, background: `color-mix(in srgb, ${dueColor} 14%, transparent)` }
-    : { color: 'var(--faint)', background: 'var(--hover)' }
-  const blockStyle: CSSProperties = dueColor
-    ? {
-        color: dueColor,
-        background: `color-mix(in srgb, ${dueColor} 14%, transparent)`,
-        borderColor: `color-mix(in srgb, ${dueColor} 30%, transparent)`,
-      }
-    : { color: 'var(--muted)', background: 'var(--hover)', borderColor: 'var(--line)' }
+  const dueInk =
+    status === 'overdue' ? 'text-err-ink' : status === 'soon' ? 'text-warn-ink' : 'text-muted'
 
   const st = card.stickers ?? {}
 
@@ -60,77 +55,56 @@ export function KanbanCardView({ card, users, labels, accent, isDone, dragging, 
     <article
       onClick={onOpen}
       className={cn(
-        'group relative cursor-grab select-none overflow-hidden rounded-card border border-line bg-surface shadow-card',
-        'flex flex-col gap-[9px] py-3 pl-4 pr-3.5 transition-[transform,box-shadow,border-color] duration-200 ease-smooth',
-        'hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover',
+        'group flex cursor-grab select-none overflow-hidden rounded-card bg-surface shadow-card',
+        'transition-[transform,box-shadow] ease-smooth',
+        'hover:-translate-y-0.5 hover:shadow-card-hover',
         dragging && 'opacity-40',
         overlay && 'rotate-2 shadow-card-hover',
       )}
     >
-      {/* Полоса статуса — цвет первой метки (ТЗ §1) */}
-      <span
-        className="absolute inset-y-[14px] left-0 w-[3px] rounded-r-[3px]"
-        style={{ background: stripColor }}
-        aria-hidden
-      />
+      {/* Полоса стадии — цвет первой метки, иначе цвет колонки */}
+      <span className="w-[3px] shrink-0" style={{ background: stripColor }} aria-hidden />
 
-      {/* Шапка: код · таймер до дедлайна · приоритет — в одну строку */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-[11px] font-semibold tracking-[0.02em] text-faint">{taskCode(card)}</span>
-        {card.dueDate && (
-          <span
-            className="inline-flex items-center gap-1 whitespace-nowrap rounded-[7px] px-[7px] py-0.5 font-mono text-[11px] font-semibold"
-            style={timerStyle}
-          >
-            <Clock size={11} strokeWidth={2} />
-            {deadlineCountdown(card.dueDate, now)}
+      <div className="min-w-0 flex-1 p-5">
+        {/* Шапка: код · таймер · приоритет */}
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="mono-data text-muted">{taskCode(card)}</span>
+          <span className={cn('mono-data', dueInk)}>{deadlineTimer(card.dueDate, now)}</span>
+          <span className="ml-auto shrink-0">
+            <PriorityFlag priority={card.priority} withLabel />
           </span>
+        </div>
+
+        {cardLabels.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1">
+            {cardLabels.map((l) => (
+              <LabelChip key={l.id} name={l.name} color={labelColor(l.color)} />
+            ))}
+          </div>
         )}
-        <span className="ml-auto shrink-0">
-          <PriorityFlag priority={card.priority} withLabel />
-        </span>
-      </div>
 
-      {/* Метки */}
-      {cardLabels.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {cardLabels.map((l) => (
-            <LabelChip key={l.id} name={l.name} color={l.color} />
-          ))}
-        </div>
-      )}
+        <h4 className="text-h3 font-medium [text-wrap:pretty]">{card.title}</h4>
 
-      {/* Название — без обрезки, переносится */}
-      <h4 className="text-[15px] font-semibold leading-5 text-fg [text-wrap:pretty]">{card.title}</h4>
+        {done > 0 && (
+          <div className="mt-3 flex items-center gap-2">
+            <ProgressBar value={done} max={total} className="flex-1" />
+            <span className="mono-data w-9 text-right text-muted">{pct}%</span>
+          </div>
+        )}
 
-      {/* Прогресс — только если > 0 */}
-      {done > 0 && (
-        <div className="flex items-center gap-2.5">
-          <ProgressBar value={done} max={total} className="h-[5px] flex-1" />
-          <span className="w-8 text-right font-mono text-[11px] font-semibold tabular-nums text-faint">{pct}%</span>
-        </div>
-      )}
+        {/* Нижний ряд — виден всегда */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+          <span className={cn('mono-data inline-flex items-center gap-1', dueInk)}>
+            <Clock size={14} strokeWidth={1.6} />
+            {card.dueDate ? formatDate(card.dueDate).toUpperCase() : 'СРОКА НЕТ'}
+          </span>
 
-      {/* Нижний ряд — всегда виден: содержит быстрые кнопки «+» (ТЗ «Стикеры и исполнители» §1) */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2 text-muted">
-          {card.dueDate && (
-            <span
-              className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] border px-[7px] py-[3px] text-[11px] font-semibold"
-              style={blockStyle}
-            >
-              <Calendar size={13} strokeWidth={2} />
-              {formatDate(card.dueDate)}
-            </span>
-          )}
           {total > 0 && (
             <span
-              className={cn(
-                'inline-flex items-center gap-1 text-[12px] font-medium tabular-nums',
-                complete ? 'text-success' : 'text-muted',
-              )}
+              className={cn('mono-data inline-flex items-center gap-1', complete ? 'text-ok-ink' : 'text-muted')}
+              title={`Чек-лист: ${done} из ${total}`}
             >
-              <CheckSquare size={14} strokeWidth={2} />
+              <ListChecks size={14} strokeWidth={1.6} />
               {done}/{total}
             </span>
           )}
@@ -141,52 +115,50 @@ export function KanbanCardView({ card, users, labels, accent, isDone, dragging, 
             <CountBadge icon={Paperclip} count={card.attachments.length} label="Вложения" />
           )}
 
-          {/* Чипы стикеров (ТЗ §5) */}
           {st.repeat && (
-            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] bg-brand-soft px-[7px] py-[3px] text-[11px] font-semibold text-brand">
-              <Repeat size={12} strokeWidth={2} /> каждую неделю
+            <span className="mono-data inline-flex items-center gap-1 text-brand-ink">
+              <RefreshCw size={14} strokeWidth={1.6} /> КАЖДУЮ НЕДЕЛЮ
             </span>
           )}
           {st.stopwatch && (
-            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] bg-hover px-[7px] py-[3px] font-mono text-[11px] font-semibold text-muted">
-              <Timer size={12} strokeWidth={2} /> 00:00
+            <span className="mono-data inline-flex items-center gap-1 text-muted">
+              <Timer size={14} strokeWidth={1.6} /> 00:00
             </span>
           )}
           {st.tracking && (
-            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] bg-hover px-[7px] py-[3px] text-[11px] font-semibold tabular-nums text-muted">
-              <BarChart3 size={12} strokeWidth={2} /> {card.spent ?? 0} ч / {card.planned ?? 8} ч
+            <span className="mono-data inline-flex items-center gap-1 text-muted">
+              <BarChart3 size={14} strokeWidth={1.6} /> {card.spent ?? 0} / {card.planned ?? 8} Ч
             </span>
           )}
           {st.reminder && (
-            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-[8px] bg-warning-soft px-[7px] py-[3px] text-[11px] font-semibold text-warning">
-              <Bell size={12} strokeWidth={2} /> за 1 ч
+            <span className="mono-data inline-flex items-center gap-1 text-warn-ink">
+              <Bell size={14} strokeWidth={1.6} /> ЗА 1 Ч
             </span>
           )}
 
-          {/* «+» — меню «Добавить стикер» */}
-          <button
-            type="button"
-            title="Добавить стикер"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => openStickerMenu(card.id, e)}
-            className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[7px] border border-dashed border-line-strong text-faint transition-colors hover:border-brand hover:text-brand"
-          >
-            <Plus size={11} strokeWidth={2.4} />
-          </button>
-        </div>
-
-        {/* Стопка аватаров + «+» — поповер «Исполнитель» */}
-        <div className="ml-auto flex items-center gap-1 pl-1.5">
-          {assignees.length > 0 && <AvatarStack users={assignees} size="sm" max={3} />}
-          <button
-            type="button"
-            title="Исполнители"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => openAssigneeMenu(card.id, e)}
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-pill border border-dashed border-line-strong text-faint transition-colors hover:border-brand hover:text-brand"
-          >
-            <Plus size={12} strokeWidth={2.2} />
-          </button>
+          <span className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              title="Добавить стикер"
+              aria-label="Добавить стикер"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => openStickerMenu(card.id, e)}
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-chip border border-line-strong text-muted transition-colors hover:border-brand hover:text-brand-ink"
+            >
+              <Plus size={12} strokeWidth={1.6} />
+            </button>
+            {assignees.length > 0 && <AvatarStack users={assignees} size="xs" max={3} />}
+            <button
+              type="button"
+              title="Исполнители"
+              aria-label="Исполнители"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => openAssigneeMenu(card.id, e)}
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-chip border border-line-strong text-muted transition-colors hover:border-brand hover:text-brand-ink"
+            >
+              <Plus size={12} strokeWidth={1.6} />
+            </button>
+          </span>
         </div>
       </div>
     </article>

@@ -1,27 +1,36 @@
 import type { Config } from 'tailwindcss'
 
 /**
- * IT-HONA Design System — Tailwind theme.
- * Единственный источник правды для токенов фронтенда (см. Brand Book §12.1).
- * Тематические цвета (bg/surface/fg/…) заданы через CSS-переменные в index.css
- * и переключаются между тёмной (основной) и светлой темой.
- * Бренд/семантические цвета фиксированы и не зависят от темы (Brand Book §2).
+ * IT-HONA CORE — Tailwind theme по брендбуку IT-HONA (rev. 1.0).
+ * Единственный источник правды для токенов фронтенда.
+ *
+ * Поверхности и статусы заданы CSS-переменными в src/index.css и переключаются
+ * между тёмной (основной) и светлой темой через data-theme на <html>.
+ * Цвета сайдбара фиксированы: тёмно-зелёная панель одинакова в обеих темах.
+ *
+ * Правила, зашитые в токены:
+ *  — три уровня радиуса и не больше: 0 (плашки, таблицы), 2 (чипы, поля,
+ *    аватары), 4 (кнопки, карточки, модалки). «Таблеток» и кругов нет,
+ *    поэтому rounded-pill намеренно равен 2px;
+ *  — две ступени тени, обе экранные;
+ *  — анимации 150–200ms, ease-out.
  */
 const config: Config = {
-  // Тема переключается через CSS-переменные (data-theme на <html>);
-  // 'class' оставлен для совместимости с dark:-утилитами при необходимости.
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        // Тематические (через CSS-переменные)
-        bg: 'var(--bg)',
-        sidebar: 'var(--sidebar)',
+        // Поверхности
+        page: 'var(--page)',
+        bg: 'var(--page)',
         surface: 'var(--surface)',
-        'surface-2': 'var(--surface-2)',
-        col: 'var(--surface-2)', // колонки/поля (семантический алиас spec --col)
-        elevated: 'var(--elevated)',
+        mist: 'var(--mist)',
+        'surface-2': 'var(--mist)',
+        col: 'var(--mist)',
+        elevated: 'var(--surface)',
+
+        // Текст и линии
         fg: 'var(--fg)',
         muted: 'var(--muted)',
         faint: 'var(--faint)',
@@ -30,70 +39,88 @@ const config: Config = {
         track: 'var(--track)',
         hover: 'var(--hover)',
 
-        // Бренд (Brand Book §2.1)
-        brand: {
-          DEFAULT: '#16A34A',
-          fg: '#FFFFFF',
-          soft: 'rgba(22,163,74,0.14)',
-          border: 'rgba(22,163,74,0.35)',
+        // Сайдбар — фиксированная тёмно-зелёная панель в обеих темах
+        sidebar: {
+          DEFAULT: '#0E3B21',
+          active: '#186B36',
+          line: '#186B36',
+          fg: '#DCEAE1',
+          muted: '#7FBF95',
+          accent: '#33C561',
         },
-        graphite: '#1E1E24',
-        ink: '#0B0B0F',
 
-        // Семантические (Brand Book §2.2)
-        success: { DEFAULT: '#22C55E', soft: 'rgba(34,197,94,0.14)' },
-        warning: { DEFAULT: '#F59E0B', soft: 'rgba(245,158,11,0.14)' },
-        error: { DEFAULT: '#EF4444', soft: 'rgba(239,68,68,0.14)' },
-        info: { DEFAULT: '#3B82F6', soft: 'rgba(59,130,246,0.14)' },
+        /**
+         * Бренд. `ink` — тон для текста (насыщенный зелёный текстом не ставится),
+         * `fill` — заливка кнопок и активных сегментов, `bg` — мягкая подложка.
+         */
+        brand: {
+          DEFAULT: 'var(--green)',
+          ink: 'var(--green-ink)',
+          fill: 'var(--fill)',
+          bg: 'var(--ok-bg)',
+          soft: 'var(--ok-bg)',
+          fg: '#FFFFFF',
+        },
+
+        // Статусы — пары «фон / ink». Насыщенный тон только у точек и полос.
+        ok: { DEFAULT: 'var(--green)', bg: 'var(--ok-bg)', ink: 'var(--ok-ink)' },
+        warn: { DEFAULT: 'var(--warn)', bg: 'var(--warn-bg)', ink: 'var(--warn-ink)' },
+        err: { DEFAULT: 'var(--err)', bg: 'var(--err-bg)', ink: 'var(--err-ink)' },
+        info: { DEFAULT: 'var(--info)', bg: 'var(--info-bg)', ink: 'var(--info-ink)' },
+
+        // Прежние семантические имена — алиасы на те же токены
+        success: { DEFAULT: 'var(--green)', soft: 'var(--ok-bg)' },
+        warning: { DEFAULT: 'var(--warn)', soft: 'var(--warn-bg)' },
+        error: { DEFAULT: 'var(--err)', soft: 'var(--err-bg)' },
       },
       fontFamily: {
-        sans: [
-          'Inter',
-          'system-ui',
-          '-apple-system',
-          'Segoe UI',
-          'Roboto',
-          'Helvetica',
-          'Arial',
-          'sans-serif',
-        ],
-        mono: ['JetBrains Mono', 'Consolas', 'ui-monospace', 'monospace'],
+        sans: ['Manrope', 'Noto Sans', 'Arial', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Courier New', 'ui-monospace', 'monospace'],
       },
-      // Типографическая шкала (Brand Book §3.2)
+      // Типографическая шкала брендбука (стр. 21–22)
       fontSize: {
-        h1: ['32px', { lineHeight: '40px', fontWeight: '700' }],
-        h2: ['24px', { lineHeight: '32px', fontWeight: '600' }],
-        h3: ['20px', { lineHeight: '28px', fontWeight: '600' }],
-        body: ['16px', { lineHeight: '24px', fontWeight: '400' }],
+        h1: ['30px', { lineHeight: '35px', fontWeight: '700', letterSpacing: '-0.02em' }],
+        h2: ['24px', { lineHeight: '30px', fontWeight: '700', letterSpacing: '-0.01em' }],
+        h3: ['19px', { lineHeight: '24px', fontWeight: '700' }],
+        body: ['16px', { lineHeight: '25px', fontWeight: '400' }],
         small: ['14px', { lineHeight: '20px', fontWeight: '400' }],
-        caption: ['12px', { lineHeight: '16px', fontWeight: '500' }],
+        caption: ['13px', { lineHeight: '19px', fontWeight: '400' }],
+        label: ['11px', { lineHeight: '16px', fontWeight: '600', letterSpacing: '0.16em' }],
+        // Крупные числа служебного слоя (KPI, сводки)
+        num: ['26px', { lineHeight: '30px', fontWeight: '600' }],
+        'num-lg': ['44px', { lineHeight: '48px', fontWeight: '600' }],
       },
-      // Радиусы (Brand Book §4.1)
+      letterSpacing: {
+        label: '0.16em',
+        data: '0.12em',
+      },
+      // Три уровня радиуса, четвёртого нет
       borderRadius: {
-        card: '16px',
-        btn: '14px',
-        input: '12px',
-        modal: '20px',
-        badge: '8px',
-        pill: '999px',
+        none: '0',
+        chip: '2px',
+        input: '2px',
+        badge: '2px',
+        pill: '2px', // «таблеток» нет — намеренно тот же уровень
+        btn: '4px',
+        card: '4px',
+        modal: '4px',
       },
-      // Тени — минимальные (Brand Book §4.2)
+      // Две экранные ступени тени, обе тематические
       boxShadow: {
-        sm: '0 1px 2px rgba(0,0,0,0.06)',
-        md: '0 4px 12px rgba(0,0,0,0.08)',
-        card: '0 1px 2px rgba(0,0,0,0.20)',
-        'card-hover': '0 8px 24px rgba(0,0,0,0.28)',
+        sm: 'var(--sh-1)',
+        md: 'var(--sh-2)',
+        card: 'var(--sh-card)',
+        'card-hover': 'var(--sh-card-hover)',
       },
-      // Сетка 8px (Brand Book §4)
+      // Шаг отступов брендбука: 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64
       spacing: {
-        '18': '4.5rem',
+        18: '4.5rem',
       },
-      // Анимации 200–300ms, ease-in-out (Brand Book §5.2)
       transitionTimingFunction: {
-        smooth: 'cubic-bezier(0.4, 0, 0.2, 1)',
+        smooth: 'cubic-bezier(0, 0, 0.2, 1)',
       },
       transitionDuration: {
-        DEFAULT: '200ms',
+        DEFAULT: '180ms',
       },
       keyframes: {
         'fade-in': {
@@ -101,28 +128,27 @@ const config: Config = {
           to: { opacity: '1' },
         },
         'slide-up': {
-          from: { opacity: '0', transform: 'translateY(6px)' },
+          from: { opacity: '0', transform: 'translateY(4px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
         'scale-in': {
-          from: { opacity: '0', transform: 'scale(0.98)' },
+          from: { opacity: '0', transform: 'scale(0.99)' },
           to: { opacity: '1', transform: 'scale(1)' },
         },
-        // Выдвижная панель задачи: translateX(28px) → 0 + fade
         'panel-in': {
-          from: { opacity: '0', transform: 'translateX(28px)' },
+          from: { opacity: '0', transform: 'translateX(24px)' },
           to: { opacity: '1', transform: 'translateX(0)' },
         },
       },
       animation: {
-        'fade-in': 'fade-in 200ms ease',
-        // Панели/вкладки — по спецификации: 0.22–0.24s cubic-bezier(.22,.61,.36,1)
-        'slide-up': 'slide-up 220ms cubic-bezier(0.22,0.61,0.36,1)',
-        'scale-in': 'scale-in 200ms cubic-bezier(0.22,0.61,0.36,1)',
-        'panel-in': 'panel-in 240ms cubic-bezier(0.22,0.61,0.36,1)',
+        'fade-in': 'fade-in 150ms ease-out',
+        'slide-up': 'slide-up 180ms ease-out',
+        'scale-in': 'scale-in 150ms ease-out',
+        'panel-in': 'panel-in 200ms ease-out',
       },
       maxWidth: {
-        container: '1440px',
+        container: '1600px',
+        narrow: '1240px',
       },
     },
   },

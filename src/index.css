@@ -3,44 +3,88 @@
 @tailwind utilities;
 
 /*
-  IT-HONA Design System — тематические токены.
-  Тёмная тема — основная (Brand Book §10); светлая поддерживается полностью
-  и переключается сменой data-theme на <html>.
-  Значения rgba для muted/faint/line взяты из утверждённого макета доски.
+  IT-HONA CORE — токены брендбука (rev. 1.0).
+  Роли поверхностей: page → surface (карточки, шапка) → mist (подложки, поля).
+  Тёмная тема — основная в продукте, светлая поддержана полностью и
+  переключается сменой data-theme на <html>.
+  Сайдбар всегда тёмно-зелёный (#0E3B21) в обеих темах — так задано брендбуком.
 */
 @layer base {
-  /* Роли поверхностей — по хендофф-спецификации IT-HONA:
-     page(bg) → sidebar/header → col(колонки, поля) → surface(карточки). */
   :root,
   :root[data-theme='dark'] {
-    --bg: #0b0b0f; /* страница */
-    --sidebar: #0c0c10; /* сайдбар и верхняя панель */
-    --surface-2: #131317; /* колонки и поля ввода (spec --col) */
-    --surface: #1e1e24; /* карточки (spec --surface) */
-    --elevated: #1e1e24; /* модалки, поповеры, меню */
-    --fg: #ffffff;
-    --muted: rgba(255, 255, 255, 0.56);
-    --faint: rgba(255, 255, 255, 0.34);
-    --line: rgba(255, 255, 255, 0.08);
-    --line-strong: rgba(255, 255, 255, 0.16);
-    --track: rgba(255, 255, 255, 0.08); /* полосы прогресса */
+    --page: #0b120e;
+    --surface: #151e18;
+    --mist: #101613;
+    --line: #26332b;
+    --line-strong: #3d4e44;
+    --track: #26332b;
+    --fg: #edf2ee;
+    --muted: #8e9a91;
+    --faint: #6c7a71;
+
+    --green: #33c561;
+    --green-ink: #7fbf95;
+    --fill: #186b36;
+
+    --ok-bg: #16281d;
+    --ok-ink: #5fd183;
+    --warn: #e0a126;
+    --warn-bg: #2e2416;
+    --warn-ink: #e8bc63;
+    --err: #d0483a;
+    --err-bg: #2e1917;
+    --err-ink: #e58579;
+    --info: #4c86e8;
+    --info-bg: #16233a;
+    --info-ink: #8fb4f2;
+
     --hover: rgba(255, 255, 255, 0.05);
+    --overlay: rgba(11, 18, 14, 0.6);
+
+    /* Тени — только два экранных уровня (брендбук §04). */
+    --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --sh-2: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --sh-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --sh-card-hover: 0 2px 4px rgba(0, 0, 0, 0.45), 0 12px 32px rgba(0, 0, 0, 0.45);
+
     color-scheme: dark;
   }
 
   :root[data-theme='light'] {
-    --bg: #f7f9f8; /* страница */
-    --sidebar: #ffffff; /* сайдбар и верхняя панель */
-    --surface-2: #f1f5f3; /* колонки и поля ввода */
-    --surface: #ffffff; /* карточки */
-    --elevated: #ffffff;
-    --fg: #1e1e24;
-    --muted: rgba(30, 30, 36, 0.62);
-    --faint: rgba(30, 30, 36, 0.44);
-    --line: rgba(30, 30, 36, 0.1);
-    --line-strong: rgba(30, 30, 36, 0.18);
-    --track: rgba(30, 30, 36, 0.08);
-    --hover: rgba(30, 30, 36, 0.04);
+    --page: #f5f7f5;
+    --surface: #ffffff;
+    --mist: #f5f7f5;
+    --line: #e3e7e3;
+    --line-strong: #9aa39c;
+    --track: #e3e7e3;
+    --fg: #101613;
+    --muted: #5a655d;
+    --faint: #9aa39c;
+
+    --green: #22a74e;
+    --green-ink: #186b36;
+    --fill: #22a74e;
+
+    --ok-bg: #e0f1e6;
+    --ok-ink: #186b36;
+    --warn: #e0a126;
+    --warn-bg: #fbf1dd;
+    --warn-ink: #7a5510;
+    --err: #b8382c;
+    --err-bg: #f7e3e1;
+    --err-ink: #8e2a20;
+    --info: #2e6fd9;
+    --info-bg: #e2eaf9;
+    --info-ink: #23539f;
+
+    --hover: rgba(16, 22, 19, 0.04);
+    --overlay: rgba(11, 18, 14, 0.5);
+
+    --sh-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --sh-2: 0 8px 24px rgba(0, 0, 0, 0.06);
+    --sh-card: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.06);
+    --sh-card-hover: 0 2px 4px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.1);
+
     color-scheme: light;
   }
 
@@ -56,26 +100,24 @@
 
   body {
     margin: 0;
-    background: var(--bg);
+    background: var(--page);
     color: var(--fg);
-    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
-      Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.45;
+    font-family: 'Manrope', 'Noto Sans', Arial, sans-serif;
+    font-size: 16px;
+    line-height: 25px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
-  /* Кастомный скроллбар в фирменном стиле */
+  /* Скроллбар — прямоугольный, без скруглений (брендбук: скруглений-«таблеток» нет). */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
   ::-webkit-scrollbar-thumb {
     background: var(--line-strong);
-    border-radius: 999px;
-    border: 2px solid transparent;
+    border: 3px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
@@ -91,15 +133,37 @@
     color: var(--faint);
   }
 
-  /* Заметный, но фирменный фокус для доступности (WCAG 2.1 AA) */
+  /* Фокус — 2px зелёного, смещение 2px (брендбук §04, WCAG 2.1 AA). */
   :focus-visible {
-    outline: 2px solid var(--brand, #16a34a);
+    outline: 2px solid var(--green);
     outline-offset: 2px;
   }
 }
 
+@layer components {
+  /*
+    Служебный слой: рубрики, коды задач, таймеры, числа в таблицах.
+    Только моно, только капслок, кегль ≤14px (брендбук §03).
+  */
+  .mono-label {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  /* Тот же слой, но для данных (коды, счётчики) — трекинг мягче. */
+  .mono-data {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+  }
+}
+
 @layer utilities {
-  /* Ограничение текста в N строк */
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -107,7 +171,6 @@
     overflow: hidden;
   }
 
-  /* Скрыть скроллбар, сохранив прокрутку */
   .no-scrollbar {
     scrollbar-width: none;
   }
@@ -115,8 +178,12 @@
     display: none;
   }
 
-  /* Убрать «залипание» синего выделения при drag на тач-устройствах */
   .touch-none {
     touch-action: none;
+  }
+
+  /* Срез угла 60° — фирменная форма плитки знака (брендбук §04). */
+  .cut-corner {
+    clip-path: polygon(0 0, calc(100% - 31px) 0, 100% 18px, 100% 100%, 0 100%);
   }
 }

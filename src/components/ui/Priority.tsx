@@ -1,4 +1,3 @@
-import { Flag } from 'lucide-react'
 import type { Priority } from '@/types'
 import { PRIORITY_META } from '@/lib/design'
 import { cn } from '@/lib/utils'
@@ -10,27 +9,30 @@ interface PriorityFlagProps {
   className?: string
 }
 
-/** Индикатор приоритета — флажок семантического цвета (ТЗ §5.3, Brand Book §7). */
+/**
+ * Индикатор приоритета: квадрат 8px насыщенного тона + подпись служебным
+ * моно-слоем. Флажок с заливкой заменён квадратом — иконки брендбука только
+ * контурные, а цветом здесь работает именно индикатор.
+ */
 export function PriorityFlag({ priority, withLabel, className }: PriorityFlagProps) {
   const meta = PRIORITY_META[priority]
   return (
     <span
-      className={cn('inline-flex items-center gap-1 text-caption font-medium', className)}
-      style={{ color: meta.color }}
+      className={cn('mono-data inline-flex items-center gap-1.5 text-muted', className)}
       title={`Приоритет: ${meta.label}`}
     >
-      <Flag size={13} strokeWidth={2} fill={meta.color} className="shrink-0" />
-      {withLabel && <span>{meta.label}</span>}
+      <span className="h-2 w-2 shrink-0" style={{ background: meta.color }} aria-hidden />
+      {withLabel && <span>{meta.label.toUpperCase()}</span>}
     </span>
   )
 }
 
-/** Точка-индикатор статуса/приоритета (Brand Book §7 — «полоса или точка»). */
+/** Только квадрат-индикатор — для плотных списков и таблиц. */
 export function PriorityDot({ priority, className }: { priority: Priority; className?: string }) {
   const meta = PRIORITY_META[priority]
   return (
     <span
-      className={cn('inline-block h-2 w-2 rounded-pill shrink-0', className)}
+      className={cn('inline-block h-2 w-2 shrink-0', className)}
       style={{ background: meta.color }}
       title={`Приоритет: ${meta.label}`}
     />

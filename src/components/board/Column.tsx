@@ -25,9 +25,13 @@ import { useBoard } from '@/store/boardStore'
 import { isListDone, listAccentColor } from '@/lib/design'
 import { cn } from '@/lib/utils'
 
+/**
+ * Цвета точки-индикатора колонки: зелёная шкала брендбука плюс четыре
+ * статусных тона. Произвольных оттенков в палитре нет.
+ */
 const COLUMN_COLORS = [
-  '#EF4444', '#F97316', '#F59E0B', '#EAB308', '#22C55E', '#14B8A6',
-  '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#8E999D',
+  '#0E3B21', '#186B36', '#22A74E', '#7FBF95',
+  '#2E6FD9', '#E0A126', '#B8382C', '#9AA39C',
 ]
 
 interface ColumnProps {
@@ -40,6 +44,8 @@ interface ColumnProps {
   onRename: (title: string) => void
   onDelete: () => void
   onOpenCard: (cardId: string) => void
+  /** Одна колонка во всю ширину — раскладка доски на телефоне. */
+  fullWidth?: boolean
 }
 
 /** Список / колонка-стадия (ТЗ логики §4.2). Droppable-контейнер для карточек. */
@@ -52,6 +58,7 @@ export function Column({
   onRename,
   onDelete,
   onOpenCard,
+  fullWidth,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: list.id, data: { type: 'list' } })
   const [editing, setEditing] = useState(false)
@@ -74,10 +81,15 @@ export function Column({
   }
 
   return (
-    <section className="flex h-full w-[86vw] max-w-[320px] shrink-0 flex-col rounded-card bg-col sm:w-[300px]">
+    <section
+      className={cn(
+        'flex h-full flex-col',
+        fullWidth ? 'w-full' : 'w-[86vw] max-w-[320px] shrink-0 sm:w-[300px]',
+      )}
+    >
       {/* Шапка колонки */}
-      <header className="flex items-center gap-2 px-3 pb-2 pt-3">
-        <span className="h-2 w-2 shrink-0 rounded-pill" style={{ background: accent }} aria-hidden />
+      <header className="mb-3 flex items-center gap-2">
+        <span className="h-2 w-2 shrink-0" style={{ background: accent }} aria-hidden />
         {editing ? (
           <input
             autoFocus
@@ -91,11 +103,11 @@ export function Column({
                 setEditing(false)
               }
             }}
-            className="min-w-0 flex-1 rounded-[8px] bg-bg px-2 py-1 text-small font-semibold text-fg outline-none ring-1 ring-brand"
+            className="min-w-0 flex-1 rounded-chip border border-brand bg-surface px-2 py-1 text-h3 text-fg outline-none"
           />
         ) : (
           <h3
-            className="min-w-0 flex-1 cursor-text truncate text-small font-semibold text-fg"
+            className="min-w-0 flex-1 cursor-text truncate text-h3"
             onDoubleClick={startRename}
             title="Двойной клик — переименовать"
           >
@@ -103,10 +115,7 @@ export function Column({
           </h3>
         )}
         <span
-          className={cn(
-            'shrink-0 rounded-pill px-1.5 text-caption font-medium tabular-nums',
-            overLimit ? 'bg-error-soft text-error' : 'bg-hover text-muted',
-          )}
+          className={cn('mono-data shrink-0 px-1', overLimit ? 'bg-err-bg text-err-ink' : 'text-muted')}
           title={list.wipLimit !== undefined ? `WIP-лимит: ${list.wipLimit}` : undefined}
         >
           {cards.length}
@@ -116,13 +125,23 @@ export function Column({
       </header>
 
       {atLimit && (
-        <p className={cn('px-3 pb-1 text-[11px]', overLimit ? 'text-error' : 'text-warning')}>
-          {overLimit ? 'Превышен WIP-лимит' : 'Достигнут WIP-лимит'}
-        </p>
+        <div
+          className={cn(
+            'mb-3 border-l-2 p-2',
+            overLimit ? 'border-l-err bg-err-bg' : 'border-l-warn bg-warn-bg',
+          )}
+        >
+          <span className={cn('mono-label', overLimit ? 'text-err-ink' : 'text-warn-ink')}>
+            {overLimit ? 'Превышен WIP-лимит' : 'Достигнут WIP-лимит'}
+          </span>
+          <span className="mt-1 block text-caption text-muted">
+            Лимит предупреждает, добавление не блокируется.
+          </span>
+        </div>
       )}
 
       {/* Добавить карточку — вверху колонки (вставка в начало) */}
-      <div className="px-2 pb-1">
+      <div className="mb-2">
         <InlineComposer
           triggerLabel="Добавить карточку"
           placeholder="Название карточки…"
@@ -136,8 +155,8 @@ export function Column({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex min-h-[8px] flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2 pt-1',
-          'transition-colors duration-200',
+          'flex min-h-[8px] flex-1 flex-col gap-2 overflow-y-auto pb-2',
+          'transition-colors',
           isOver && 'bg-hover',
         )}
       >
@@ -157,9 +176,10 @@ export function Column({
         </SortableContext>
 
         {cards.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-btn border border-dashed border-line py-6 text-caption text-faint">
-            <Plus size={16} strokeWidth={2} className="mb-1 opacity-60" />
-            Перетащите карточку сюда
+          <div className="flex flex-col items-center justify-center gap-1 rounded-card border border-dashed border-line px-3 py-6 text-center">
+            <Plus size={18} strokeWidth={1.6} className="text-faint" />
+            <span className="text-caption text-muted">Пока пусто</span>
+            <span className="text-caption text-faint">Перетащите карточку сюда или добавьте новую</span>
           </div>
         )}
       </div>
@@ -189,7 +209,7 @@ function ColumnMenu({ list, onRename, onDelete }: { list: List; onRename: () => 
           <div className="fixed inset-0 z-40" onClick={close} aria-hidden />
           <div
             role="menu"
-            className="absolute right-0 top-9 z-50 w-60 overflow-hidden rounded-modal border border-line bg-elevated py-1 shadow-md animate-scale-in"
+            className="absolute right-0 top-9 z-50 w-64 overflow-hidden rounded-card border border-line bg-elevated py-1 shadow-md animate-scale-in"
           >
             <MItem icon={Pencil} label="Переименовать" onClick={() => { close(); onRename() }} />
 
@@ -213,15 +233,15 @@ function ColumnMenu({ list, onRename, onDelete }: { list: List; onRename: () => 
 
             <Divider />
             <div className="px-3 py-1.5">
-              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">Цвет колонки</div>
+              <div className="mono-label mb-2 text-faint">Цвет колонки</div>
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
                   onClick={() => actions.setListColor(list.id, '')}
                   title="Авто"
-                  className="flex h-5 w-5 items-center justify-center rounded-pill border border-line-strong text-faint transition-colors hover:text-fg"
+                  className="flex h-6 w-6 items-center justify-center rounded-chip border border-line-strong text-faint transition-colors hover:text-fg"
                 >
-                  <X size={11} strokeWidth={2.5} />
+                  <X size={12} strokeWidth={1.6} />
                 </button>
                 {COLUMN_COLORS.map((c) => (
                   <button
@@ -231,8 +251,8 @@ function ColumnMenu({ list, onRename, onDelete }: { list: List; onRename: () => 
                     aria-label={`Цвет ${c}`}
                     style={{ background: c }}
                     className={cn(
-                      'h-5 w-5 rounded-pill transition-transform hover:scale-110',
-                      list.color === c && 'ring-2 ring-white ring-offset-2 ring-offset-elevated',
+                      'h-6 w-6 rounded-chip transition-transform hover:scale-105',
+                      list.color === c && 'ring-2 ring-brand ring-offset-2 ring-offset-elevated',
                     )}
                   />
                 ))}
@@ -272,11 +292,11 @@ function MItem({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-small transition-colors disabled:opacity-40',
-        danger ? 'text-error hover:bg-error-soft' : 'text-fg hover:bg-hover',
+        'flex w-full items-center gap-2.5 px-3 py-2 text-left text-small transition-colors disabled:opacity-40',
+        danger ? 'text-err-ink hover:bg-err-bg' : 'text-fg hover:bg-hover',
       )}
     >
-      <Icon size={15} strokeWidth={2} className="shrink-0" />
+      <Icon size={16} strokeWidth={1.6} className="shrink-0" />
       {label}
     </button>
   )
