@@ -1,0 +1,37 @@
+{
+  "name": "@hona/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Drizzle-схема, миграции, мигратор и тестовая инфраструктура БД HONA Core 2.0.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "source": "./src/testing/index.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations",
+    "init"
+  ],
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "check": "drizzle-kit check",
+    "migrate": "tsx --conditions=source --env-file-if-exists=../../.env src/migrate.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.3",
+    "pg": "8.23.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsbuild/test",
+    "emitDeclarationOnly": true,
+    "tsBuildInfoFile": ".tsbuild/test.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["tests/**/*.ts", "src/**/*.test.ts", "src/testing/**/*.ts", "drizzle.config.ts"],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    }
+  ]
+}
