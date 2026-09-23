@@ -12,10 +12,11 @@
     "typecheck": "tsc -b --noEmit",
     "test": "npm run test:unit && npm run test:api",
     "test:unit": "node --experimental-strip-types --import ./tests/alias-hook.mjs --test tests/unit/*.test.ts",
-    "test:api": "node --experimental-strip-types --import ./tests/alias-hook.mjs --test tests/api/*.test.ts",
-    "test:db": "node tests/db/board.test.mjs",
+    "test:api": "npm run build:shared && node --experimental-strip-types --import ./tests/alias-hook.mjs --test tests/api/*.test.ts",
+    "test:db": "npm run build:shared && node tests/db/board.test.mjs && node tests/db/events.test.mjs",
     "test:e2e": "node tests/e2e/run.mjs",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build"
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build",
+    "build:shared": "tsc -p shared/tsconfig.json"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

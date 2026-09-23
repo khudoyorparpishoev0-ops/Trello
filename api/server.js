@@ -20,6 +20,11 @@ import {
   canDeleteBoards,
 } from './boardGuard.js'
 import { limiterKey, retryAfter, registerFailure, registerSuccess } from './rateLimit.js'
+// Общий код: скомпилированный TypeScript из shared/ (см. api/Dockerfile).
+import { DEFAULT_WORKSPACE_ID } from './shared/domain/workspace.js'
+import { diffBoardState, isEmptyChangeSet } from './shared/domain/diff.js'
+import { changeSetToEvents } from './shared/domain/events.js'
+import { createBoardRepo, EVENTS_SCHEMA } from './boardRepo.js'
 import { aiStatus, allowRequest, datasetTooBig, runAgent as runAiAgent, runExecutive as runAiExecutive } from './ai.js'
 import { allowedDomains, isEmailAllowed, domainsHint } from './emailDomains.js'
 import { mailerEnabled, sendVerificationCode, verifyMailer } from './mailer.js'
@@ -43,6 +48,9 @@ const AUTH_PASSWORD = process.env.AUTH_PASSWORD ?? ''
 const SHARED = !ACCOUNTS && AUTH_PASSWORD.length > 0
 const AUTH_REQUIRED = ACCOUNTS || SHARED
 const SESSION_DAYS = 30
+// Пространство пока одно. Строка не размазывается по запросам: когда появится
+// второе, менять придётся объявление в общем коде, а не десяток SQL.
+const WORKSPACE_ID = DEFAULT_WORKSPACE_ID
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const pool = new pg.Pool({
@@ -50,6 +58,10 @@ const pool = new pg.Pool({
   max: 5,
   connectionTimeoutMillis: 4000,
 })
+// Доступ к доске и журналу событий идёт через репозиторий: он держит границу
+// пространства и пишет состояние вместе с событиями одной транзакцией.
+const boards = createBoardRepo(pool)
+
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://redis:6379', {
   lazyConnect: true,
   maxRetriesPerRequest: 1,
@@ -101,6 +113,8 @@ async function ensureSchema() {
     actor text,
     created_at timestamptz NOT NULL DEFAULT now())`)
   await pool.query(`CREATE INDEX IF NOT EXISTS board_history_created_idx ON board_history (board_id, created_at DESC)`)
+  // Журнал доменных событий: только дописывается, ключ события уникален.
+  for (const sql of EVENTS_SCHEMA) await pool.query(sql)
 }
 
 async function initWithRetry() {
@@ -599,11 +613,11 @@ async function handle(req, res) {
     const actor = await currentUser(req)
     if (AUTH_REQUIRED && !actor) return json(res, 401, { error: 'unauthorized' })
     if (req.method === 'GET') {
-      const { rows } = await pool.query("SELECT data, version FROM board_state WHERE id = 'default'")
+      const state = await boards.getBoardState(WORKSPACE_ID)
       // Версия уходит заголовком, а не в теле: тело — само состояние доски,
       // и оборачивать его в конверт значило бы сломать уже работающие клиенты.
-      const headers = rows[0] ? { 'X-Board-Version': String(rows[0].version) } : undefined
-      return json(res, 200, rows[0] ? rows[0].data : null, headers)
+      const headers = state ? { 'X-Board-Version': String(state.version) } : undefined
+      return json(res, 200, state ? state.data : null, headers)
     }
     if (req.method === 'PUT' || req.method === 'POST') {
       const body = await readBody(req)
@@ -618,9 +632,9 @@ async function handle(req, res) {
       if (!check.ok) return json(res, 422, { error: check.error, detail: check.detail })
 
       // Прежнее состояние — для уведомлений, снимка истории и сверки версии.
-      const prev = await pool.query("SELECT data, version FROM board_state WHERE id = 'default'")
-      const prevData = prev.rows[0]?.data
-      const prevVersion = prev.rows[0]?.version ?? null
+      const prev = await boards.getBoardState(WORKSPACE_ID)
+      const prevData = prev?.data
+      const prevVersion = prev?.version ?? null
       const clientVersion = parseVersion(req.headers['x-board-version'])
 
       // Конфликт одновременного редактирования: доску уже изменил кто-то другой.
@@ -641,59 +655,55 @@ async function handle(req, res) {
         })
       }
 
+      // Единственное сравнение состояний: из него живут и уведомления, и
+      // журнал. Второго diff в системе нет и быть не должно.
+      const changeSet = diffBoardState(prevData, newData)
+
       // Снимок предыдущего состояния (разреженно; при заметной потере карточек — всегда).
+      let snapshot = null
       try {
-        const last = await pool.query(
-          "SELECT created_at FROM board_history WHERE board_id = 'default' ORDER BY created_at DESC LIMIT 1",
-        )
-        if (shouldSnapshot(prevData, newData, last.rows[0]?.created_at)) {
-          await pool.query(
-            `INSERT INTO board_history (board_id, data, cards, actor) VALUES ('default', $1::jsonb, $2, $3)`,
-            [JSON.stringify(prevData), Object.keys(prevData?.cards ?? {}).length, actor?.name ?? null],
-          )
-          // Держим последние 50 снимков.
-          await pool.query(
-            `DELETE FROM board_history WHERE board_id = 'default' AND id NOT IN (
-               SELECT id FROM board_history WHERE board_id = 'default' ORDER BY created_at DESC LIMIT 50)`,
-          )
+        if (shouldSnapshot(prevData, newData, await boards.lastSnapshotAt(WORKSPACE_ID))) {
+          snapshot = {
+            data: JSON.stringify(prevData),
+            cards: Object.keys(prevData?.cards ?? {}).length,
+            actor: actor?.name ?? null,
+          }
         }
       } catch (e) {
-        console.error('[api] снимок истории не сохранён:', e.message)
+        console.error('[api] снимок истории не запланирован:', e.message)
       }
 
-      let nextVersion
-      if (prevVersion === null) {
-        // Первая запись (или строка от прежней схемы) — сверять не с чем.
-        const ins = await pool.query(
-          `INSERT INTO board_state (id, data, version) VALUES ('default', $1::jsonb, 1)
-           ON CONFLICT (id) DO UPDATE SET data = $1::jsonb, version = board_state.version + 1,
-             updated_at = now()
-           RETURNING version`,
-          [body],
-        )
-        nextVersion = Number(ins.rows[0].version)
-      } else {
-        // Условие по версии в самом UPDATE: между SELECT выше и записью мог
-        // успеть вклиниться другой запрос, и проверка в приложении его не
-        // поймала бы. Ноль обновлённых строк — тот же конфликт.
-        const upd = await pool.query(
-          `UPDATE board_state SET data = $1::jsonb, version = version + 1, updated_at = now()
-           WHERE id = 'default' AND version = $2 RETURNING version`,
-          [body, prevVersion],
-        )
-        if (!upd.rowCount) {
-          const cur = await pool.query("SELECT version FROM board_state WHERE id = 'default'")
-          return json(res, 409, { error: 'version_conflict', version: Number(cur.rows[0]?.version ?? 0) })
-        }
-        nextVersion = Number(upd.rows[0].version)
+      // Доска, снимок и события пишутся вместе. Нельзя получить сохранённую
+      // доску без истории или историю без доски.
+      const saved = await boards.saveBoardState(WORKSPACE_ID, {
+        body,
+        expectedVersion: prevVersion,
+        snapshot,
+        // Номер версии известен только внутри транзакции, а без него событие
+        // бесполезно для порядка и для поиска расхождений.
+        buildEvents: (nextVersion) =>
+          changeSetToEvents(changeSet, {
+            workspaceId: WORKSPACE_ID,
+            boardVersion: nextVersion,
+            actorUserId: actor?.id ?? null,
+          }),
+      })
+
+      if (!saved.ok) {
+        return json(res, 409, { error: 'version_conflict', version: saved.version })
       }
-      // Уведомления (назначение + смена срока) — в фоне, ответ не задерживаем.
-      notifyAssignments(pool, prevData, newData, actor?.id, actor?.name).catch((e) =>
-        console.error('[tg] assign:', e.message),
-      )
-      notifyDueChanges(pool, prevData, newData, actor?.id, actor?.name).catch((e) =>
-        console.error('[tg] due:', e.message),
-      )
+      const nextVersion = saved.version
+
+      // Уведомления идут после фиксации транзакции и из того же набора
+      // изменений, что и журнал. Их сбой данных уже не отменяет.
+      if (!isEmptyChangeSet(changeSet)) {
+        notifyAssignments(pool, changeSet, actor?.id, actor?.name).catch((e) =>
+          console.error('[tg] assign:', e.message),
+        )
+        notifyDueChanges(pool, changeSet, actor?.id, actor?.name).catch((e) =>
+          console.error('[tg] due:', e.message),
+        )
+      }
       return json(res, 200, { ok: true, version: nextVersion }, { 'X-Board-Version': String(nextVersion) })
     }
     return json(res, 405, { error: 'method_not_allowed' })

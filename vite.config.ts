@@ -37,6 +37,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Общий код фронтенда и API. Фронтенд импортирует исходники,
+      // API — результат их компиляции (см. api/Dockerfile).
+      '#shared': fileURLToPath(new URL('./shared', import.meta.url)),
     },
   },
   server: {

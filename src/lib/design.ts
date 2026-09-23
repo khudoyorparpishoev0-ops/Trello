@@ -1,5 +1,9 @@
 import type { Priority } from '@/types'
 
+// Правило «список выполнен» — в общем коде; здесь оно только переэкспортируется,
+// чтобы импорты компонентов не менялись.
+export { isDoneList, isListDone } from '#shared/domain/design'
+
 /**
  * Прикладные токены дизайн-системы, не выражаемые классами Tailwind напрямую:
  * метаданные приоритетов, палитра меток и цвета стадий.
@@ -66,22 +70,3 @@ export function listAccentColor(title: string): string {
 
 /** Зелёная шкала брендбука — для диаграмм (стр. 20). */
 export const GREEN_SCALE = ['#0E3B21', '#186B36', '#22A74E', '#7FBF95', '#B7D6C2', '#DCEAE1']
-
-/**
- * Эвристика по названию — только запасной вариант для списков, у которых не
- * задан системный признак `done` (данные, созданные до его появления).
- * Новую логику на неё завязывать нельзя: пользователь вправе назвать список как
- * угодно. Используйте `isListDone(list)`.
- */
-export function isDoneList(title: string): boolean {
-  return /(done|готов|заверш|выполнен|архив|archive)/.test(title.toLowerCase())
-}
-
-/**
- * Считаются ли задачи списка выполненными (не входят в активную статистику).
- * Источник истины — явный флаг `done` у списка; название используется лишь как
- * запасной вариант для старых данных.
- */
-export function isListDone(list: { title: string; done?: boolean }): boolean {
-  return list.done ?? isDoneList(list.title)
-}

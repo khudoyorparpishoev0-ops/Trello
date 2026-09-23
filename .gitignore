@@ -43,3 +43,6 @@ Thumbs.db
 
 # vite-plugin-pwa dev output
 dev-dist
+
+# Сборка общего кода для API (создаётся npm run build:shared)
+api/shared/

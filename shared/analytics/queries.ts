@@ -13,8 +13,8 @@ import type {
   Scope,
   TaskRef,
   WipViolation,
-} from './types'
-import { priorityOf, select, toRef } from './analyze'
+} from './types.js'
+import { priorityOf, select, toRef } from './analyze.js'
 
 const DAY_HOURS = 24
 

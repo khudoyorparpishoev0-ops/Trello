@@ -6,7 +6,7 @@
  * простое — если поле нельзя получить арифметикой из CORE Data, ему здесь не
  * место.
  */
-import type { Card, Priority, User } from '@/types'
+import type { Card, Priority, User } from '../domain/types.js'
 
 /** Что известно про одну карточку после разбора состояния. */
 export interface CardFacts {

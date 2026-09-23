@@ -1,0 +1,19 @@
+{
+  "//": "Сборка общего кода в ESM для Node: API получает результат этой компиляции.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "declaration": true,
+    "sourceMap": false,
+    "removeComments": false,
+    "outDir": "../api/shared",
+    "rootDir": "."
+  },
+  "include": ["**/*.ts"]
+}

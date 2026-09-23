@@ -156,12 +156,12 @@ src/
 Кратко:
 
 ```bash
-cp .env.example .env      # заполнить пароли; домена нет → SITE_ADDRESS=:80
+cp .env.example .env      # заполнить пароли; свой домен → SITE_ADDRESS=core.ithona.tj
 docker compose up -d --build
 curl http://localhost/api/health   # проверка связи стека
 ```
 
-Когда появится домен — в `.env` вписать `SITE_ADDRESS=board.example.com`, и Caddy сам выпустит HTTPS.
+Рабочий домен платформы — `core.ithona.tj`; в `.env` он задан строкой `SITE_ADDRESS=core.ithona.tj`, и Caddy сам выпускает HTTPS. На новом сервере до настройки домена оставляют `SITE_ADDRESS=:80`.
 
 ## Дальнейшие шаги (по ТЗ)
 

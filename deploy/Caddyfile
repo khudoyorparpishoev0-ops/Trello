@@ -1,7 +1,7 @@
 # Обратный прокси IT-HONA TaskBoard.
 # SITE_ADDRESS задаётся в .env:
 #   - пока нет домена:  :80        (HTTP по IP сервера)
-#   - когда есть домен: board.example.com   → Caddy сам получит HTTPS (Let's Encrypt)
+#   - когда есть домен: core.ithona.tj   → Caddy сам получит HTTPS (Let's Encrypt)
 {$SITE_ADDRESS} {
 	encode gzip zstd
 

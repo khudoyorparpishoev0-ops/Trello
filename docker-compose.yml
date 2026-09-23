@@ -29,7 +29,10 @@ services:
 
   api:
     build:
-      context: ./api
+      # Контекст — корень репозитория: образу нужен общий код из shared/.
+      # Копируется только api/ и shared/, остальное отсекает .dockerignore.
+      context: .
+      dockerfile: api/Dockerfile
     restart: unless-stopped
     environment:
       PORT: "3000"
