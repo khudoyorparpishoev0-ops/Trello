@@ -1,0 +1,28 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "../.tsbuild/tests",
+    "emitDeclarationOnly": true,
+    "tsBuildInfoFile": "../.tsbuild/tests.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["guards/**/*.ts", "integration/**/*.ts"],
+  "references": [
+    {
+      "path": "../apps/api"
+    },
+    {
+      "path": "../apps/worker"
+    },
+    {
+      "path": "../packages/db"
+    },
+    {
+      "path": "../packages/db/tsconfig.test.json"
+    },
+    {
+      "path": "../packages/shared"
+    }
+  ]
+}
