@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "rootDir": ".",
+    "outDir": ".tsbuild/web",
+    "emitDeclarationOnly": true,
+    "tsBuildInfoFile": ".tsbuild/web.tsbuildinfo",
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.tsx"],
+  "references": [
+    {
+      "path": "../../packages/shared"
+    }
+  ]
+}

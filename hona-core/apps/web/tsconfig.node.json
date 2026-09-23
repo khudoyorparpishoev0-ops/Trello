@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "rootDir": ".",
+    "outDir": ".tsbuild/node",
+    "emitDeclarationOnly": true,
+    "tsBuildInfoFile": ".tsbuild/node.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts", "tailwind.config.ts"]
+}
