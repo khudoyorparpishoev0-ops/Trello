@@ -1,0 +1,29 @@
+# HONA Core 2.0 — Dependabot (§16.6, §23.3). Только hona-core/ и GitHub Actions;
+# зависимости легаси v1 в корне не обновляются. Еженедельно, групповыми PR в develop-2.0.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /hona-core
+    target-branch: develop-2.0
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, hona-core]
+    groups:
+      hona-core-minor-and-patch:
+        update-types: [minor, patch]
+      hona-core-major:
+        update-types: [major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop-2.0
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: [dependencies, ci]
+    groups:
+      github-actions:
+        patterns: ['*']
