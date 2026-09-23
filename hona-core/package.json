@@ -1,0 +1,51 @@
+{
+  "name": "hona-core",
+  "version": "2.0.0-phase1",
+  "private": true,
+  "description": "HONA Core 2.0 — monorepo (npm workspaces). Legacy v1 lives outside this folder and is not imported.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12 <23"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/db",
+    "apps/api",
+    "apps/worker",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc -b && npm run build -w @hona/web",
+    "typecheck": "tsc -b",
+    "lint": "eslint . --max-warnings 0 && prettier --check .",
+    "format": "prettier --write .",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:coverage": "vitest run --coverage",
+    "db:generate": "npm run generate -w @hona/db",
+    "db:migrate": "npm run migrate -w @hona/db",
+    "openapi:generate": "npm run openapi:generate -w @hona/api",
+    "openapi:check": "npm run openapi:check -w @hona/api",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
+    "check:migrations": "node scripts/check-migrations-immutable.mjs",
+    "system:ping": "npm run system:ping -w @hona/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "22.20.4",
+    "@vitest/coverage-v8": "3.2.7",
+    "drizzle-orm": "0.45.3",
+    "eslint": "9.39.5",
+    "eslint-plugin-import-x": "4.17.1",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "16.5.0",
+    "prettier": "3.9.9",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vite": "5.4.21",
+    "vitest": "3.2.7"
+  }
+}

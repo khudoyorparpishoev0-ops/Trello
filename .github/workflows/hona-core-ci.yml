@@ -1,0 +1,289 @@
+# HONA Core 2.0 — CI (Architecture v1.0 Final §16.3, §23.10).
+# Только hona-core/** и этот файл; легаси v1 в корне репозитория этот workflow не собирает.
+# Секреты GitHub не нужны: пароли тестовых PostgreSQL/MinIO — локальные константы CI.
+name: hona-core-ci
+
+on:
+  pull_request:
+    branches: [develop-2.0, main]
+    paths:
+      - 'hona-core/**'
+      - '.github/workflows/hona-core-ci.yml'
+  push:
+    branches: [develop-2.0]
+    paths:
+      - 'hona-core/**'
+      - '.github/workflows/hona-core-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hona-core-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: hona-core
+
+env:
+  # Базовая ревизия для проверок по diff: PR — его база, push — предыдущий коммит ветки.
+  BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+  HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: hona-core/.nvmrc
+          cache: npm
+          cache-dependency-path: hona-core/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: ESLint (package boundaries, no legacy imports) + Prettier
+        run: npm run lint
+      - name: Legacy v1 untouched (§23.11 item 6)
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-legacy-untouched.mjs "$BASE_SHA" "$HEAD_SHA"
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: hona-core/.nvmrc
+          cache: npm
+          cache-dependency-path: hona-core/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: tsc -b (all workspaces, tests included)
+        run: npm run typecheck
+
+  unit:
+    name: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: hona-core/.nvmrc
+          cache: npm
+          cache-dependency-path: hona-core/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Vitest — project unit
+        run: npm run test:unit
+
+  integration:
+    name: integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-postgres
+          POSTGRES_DB: hona
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hona"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      NODE_ENV: test
+      APP_ORIGIN: http://localhost:5173
+      TEST_DATABASE_ADMIN_URL: postgres://postgres:ci-only-postgres@127.0.0.1:5432/postgres
+      DATABASE_URL: postgres://hona_app:ci-only-app@127.0.0.1:5432/hona
+      DATABASE_URL_MIGRATE: postgres://hona_migrate:ci-only-migrate@127.0.0.1:5432/hona
+      HONA_APP_PASSWORD: ci-only-app
+      HONA_MIGRATE_PASSWORD: ci-only-migrate
+      HONA_READONLY_PASSWORD: ci-only-readonly
+      REDIS_URL: redis://127.0.0.1:6379
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: hona
+      S3_ACCESS_KEY: hona-app
+      S3_SECRET_KEY: ci-only-s3-secret
+      MINIO_IMAGE: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+      MC_IMAGE: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: hona-core/.nvmrc
+          cache: npm
+          cache-dependency-path: hona-core/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      # service container не принимает команду `server /data`, поэтому MinIO — отдельным шагом (§16.3)
+      - name: Start MinIO and initialise the private bucket
+        run: |
+          docker run -d --name minio -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER=ci-only-minio-root -e MINIO_ROOT_PASSWORD=ci-only-minio-root \
+            -e MINIO_API_CORS_ALLOW_ORIGIN="$APP_ORIGIN" \
+            "$MINIO_IMAGE" server /data
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:9000/minio/health/ready >/dev/null && break
+            sleep 1
+          done
+          docker run --rm --network host -v "$PWD/docker/minio-init.sh:/minio-init.sh:ro" \
+            -e MINIO_ENDPOINT=http://127.0.0.1:9000 \
+            -e MINIO_ROOT_USER=ci-only-minio-root -e MINIO_ROOT_PASSWORD=ci-only-minio-root \
+            -e S3_BUCKET -e S3_ACCESS_KEY -e S3_SECRET_KEY \
+            --entrypoint /bin/sh "$MC_IMAGE" /minio-init.sh
+      - name: Create database roles (packages/db/init/01-roles.sh)
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: '5432'
+          PGPASSWORD: ci-only-postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: hona
+        run: sh packages/db/init/01-roles.sh
+      - name: Migrations from zero (hona_migrate)
+        run: npm run db:migrate
+      - name: Migrations are idempotent (second run applies nothing)
+        run: npm run db:migrate
+      - name: Vitest — unit + integration with coverage thresholds (§23.8)
+        run: npm run test:coverage
+
+  migrations:
+    name: migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: hona-core/.nvmrc
+          cache: npm
+          cache-dependency-path: hona-core/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Schema and migrations match (drizzle-kit generate → no new files)
+        run: |
+          npm run db:generate
+          if [ -n "$(git status --porcelain -- packages/db/migrations)" ]; then
+            git status --porcelain -- packages/db/migrations
+            echo "::error::packages/db/src/schema differs from packages/db/migrations — run npm run db:generate and commit the migration"
+            exit 1
+          fi
+      - name: drizzle-kit check (journal and snapshots are consistent)
+        run: npm run check -w @hona/db
+      - name: Applied migrations are immutable (forward-only)
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "no base revision (new branch) — nothing to compare"
+          else
+            node scripts/check-migrations-immutable.mjs "$BASE_SHA"
+          fi
+
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: hona-core/.nvmrc
+          cache: npm
+          cache-dependency-path: hona-core/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: tsc (api, worker, packages) + vite build (web)
+        run: npm run build
+      - name: Initial bundle ≤ 600 KB gzip
+        run: npm run check:bundle
+      - name: docker build api (no push)
+        run: docker build -f apps/api/Dockerfile -t hona-core/api:ci .
+      - name: docker build worker (no push)
+        run: docker build -f apps/worker/Dockerfile -t hona-core/worker:ci .
+      - name: docker build web (no push)
+        run: docker build -f apps/web/Dockerfile -t hona-core/web:ci .
+
+  openapi:
+    name: openapi
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: hona-core/.nvmrc
+          cache: npm
+          cache-dependency-path: hona-core/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: docs/api/openapi.json matches the zod contracts
+        run: npm run openapi:check
+
+  secrets:
+    name: secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # gitleaks CLI в контейнере, а не gitleaks-action (для организаций тот требует лицензию, §16.3)
+      - name: gitleaks — commits of this change
+        working-directory: .
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            RANGE="-1 $HEAD_SHA"
+          else
+            RANGE="$BASE_SHA..$HEAD_SHA"
+          fi
+          echo "scanning: $RANGE"
+          docker run --rm -v "$PWD:/repo" --entrypoint sh zricethezav/gitleaks:v8.30.1 -c \
+            "git config --global --add safe.directory /repo && gitleaks git /repo --log-opts='$RANGE' --redact --no-banner --verbose --exit-code 1"
+
+  deps:
+    name: deps
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: hona-core/.nvmrc
+      # До Phase 22 — предупреждение, а не блокировка (§16.3); затем уровень high блокирует merge.
+      - name: npm audit --audit-level=high (warning until Phase 22)
+        run: |
+          if npm audit --audit-level=high; then
+            echo "npm audit: no high or critical vulnerabilities"
+          else
+            echo "::warning title=npm audit::high or critical advisories found — see the log; blocking from Phase 22 (§16.3)"
+          fi
+      - name: npm audit — production dependencies only (informational)
+        run: npm audit --omit=dev || true

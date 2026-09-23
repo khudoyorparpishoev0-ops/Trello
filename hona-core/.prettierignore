@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.tsbuild
+package-lock.json
+# Сгенерированные файлы: форматируются генератором, ручная правка запрещена
+packages/db/migrations
+docs/api/openapi.json
+# Замороженные документы: не переформатируются
+CLAUDE.md
+docs/architecture

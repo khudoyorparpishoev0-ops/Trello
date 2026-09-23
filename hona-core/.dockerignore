@@ -1,0 +1,14 @@
+# Контекст сборки образов — только то, что нужно для компиляции
+**/node_modules
+**/dist
+**/coverage
+**/.tsbuild
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+.git
+docs
+tests
+**/*.test.ts
+**/*.test.tsx

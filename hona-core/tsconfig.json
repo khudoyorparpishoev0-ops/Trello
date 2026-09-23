@@ -1,0 +1,38 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/shared"
+    },
+    {
+      "path": "./packages/shared/tsconfig.test.json"
+    },
+    {
+      "path": "./packages/db"
+    },
+    {
+      "path": "./packages/db/tsconfig.test.json"
+    },
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./apps/api/tsconfig.test.json"
+    },
+    {
+      "path": "./apps/worker"
+    },
+    {
+      "path": "./apps/worker/tsconfig.test.json"
+    },
+    {
+      "path": "./apps/web"
+    },
+    {
+      "path": "./apps/web/tsconfig.node.json"
+    },
+    {
+      "path": "./tests/tsconfig.json"
+    }
+  ]
+}

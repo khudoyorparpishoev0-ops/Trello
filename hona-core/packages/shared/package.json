@@ -1,0 +1,21 @@
+{
+  "name": "@hona/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Кросс-граничные контракты HONA Core 2.0: zod-схемы API, события, коды ошибок. Без React и pg.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "zod": "4.6.5"
+  }
+}

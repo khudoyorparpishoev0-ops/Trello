@@ -1,0 +1,11 @@
+# HONA Core 2.0 — локальные артефакты (корневой .gitignore легаси тоже покрывает node_modules, dist, .env*)
+node_modules/
+dist/
+coverage/
+.tsbuild/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log
+.vite/

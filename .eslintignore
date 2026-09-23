@@ -1,0 +1,2 @@
+# Легаси v1 (eslint . в корне) не линтует HONA Core 2.0: у hona-core/ свой ESLint 9 (§4, §23.3).
+hona-core/
