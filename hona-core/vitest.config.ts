@@ -9,6 +9,8 @@ import { defineConfig } from 'vitest/config'
 if (existsSync('.env')) process.loadEnvFile('.env')
 
 export default defineConfig({
+  // Не искать postcss.config.js вверх по дереву: в корне репозитория лежит конфиг легаси (R-14).
+  css: { postcss: {} },
   test: {
     coverage: {
       provider: 'v8',

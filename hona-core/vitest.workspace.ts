@@ -11,6 +11,9 @@ import { defineWorkspace } from 'vitest/config'
 const shared = {
   resolve: { conditions: ['source'] },
   esbuild: { jsx: 'automatic' as const },
+  // Встроенный пустой конфиг: иначе Vite ищет postcss.config.js вверх по дереву и находит
+  // конфиг легаси в корне репозитория (зависимость от чужого node_modules, риск R-14).
+  css: { postcss: {} },
 }
 
 export default defineWorkspace([
